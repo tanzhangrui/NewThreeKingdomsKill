@@ -16,6 +16,7 @@
 #include <QLayout>
 #include <QStackedLayout>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QFile>
 #include <QFileInfo>
 #include <QEvent>
@@ -83,11 +84,11 @@ void CenterEffectWidget::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::TextAntialiasing);
     
-    p.fillRect(rect(), QColor(0, 0, 0, 100));
+    p.fillRect(rect(), QColor(0, 0, 0, 150));
     
     QPointF center(width() / 2.0, height() / 2.0);
     
-    float pulseScale = 1.0f + 0.1f * qSin(m_phase * 3);
+    float pulseScale = 1.0f + 0.15f * qSin(m_phase * 4);
     
     p.save();
     p.translate(center);
@@ -100,25 +101,46 @@ void CenterEffectWidget::paintEvent(QPaintEvent*) {
     else if (m_type == QString::fromUtf8("skill")) glowColor = C_PURPLE;
     else if (m_type == QString::fromUtf8("trick")) glowColor = C_ORANGE;
     
-    for (int i = 5; i >= 1; --i) {
+    for (int i = 8; i >= 1; --i) {
         QColor glow = glowColor;
-        glow.setAlpha(30 * i);
-        p.setPen(QPen(glow, i * 3));
+        glow.setAlpha(40 * i);
+        p.setPen(QPen(glow, i * 5));
         p.setBrush(Qt::NoBrush);
-        p.drawEllipse(QPointF(0, 0), 100 + i * 20, 100 + i * 20);
+        p.drawEllipse(QPointF(0, 0), 150 + i * 35, 150 + i * 35);
     }
     
+    QRadialGradient rg(0, 0, 200);
+    QColor rgColor = glowColor;
+    rgColor.setAlpha(80);
+    rg.setColorAt(0, rgColor);
+    rg.setColorAt(1, QColor(0, 0, 0, 0));
+    p.setBrush(rg);
+    p.setPen(Qt::NoPen);
+    p.drawEllipse(QPointF(0, 0), 200, 200);
+    
     QFont f;
-    f.setPixelSize(72);
+    f.setPixelSize(120);
     f.setBold(true);
     f.setFamily(QString::fromUtf8("Microsoft YaHei"));
     p.setFont(f);
     
-    p.setPen(QPen(QColor(0, 0, 0, 200), 10));
-    p.drawText(QRect(-200, -50, 400, 100), Qt::AlignCenter, m_text);
+    for (int i = 3; i >= 1; --i) {
+        p.setPen(QPen(QColor(0, 0, 0, 150), 12 + i * 3));
+        p.drawText(QRect(-350, -80, 700, 160), Qt::AlignCenter, m_text);
+    }
     
     p.setPen(glowColor);
-    p.drawText(QRect(-200, -50, 400, 100), Qt::AlignCenter, m_text);
+    p.drawText(QRect(-350, -80, 700, 160), Qt::AlignCenter, m_text);
+    
+    QFont subF;
+    subF.setPixelSize(36);
+    subF.setBold(true);
+    subF.setFamily(QString::fromUtf8("Microsoft YaHei"));
+    p.setFont(subF);
+    QColor subColor = glowColor.lighter(130);
+    subColor.setAlpha(200);
+    p.setPen(subColor);
+    p.drawText(QRect(-350, 100, 700, 50), Qt::AlignCenter, QString::fromUtf8("✦ ✦ ✦"));
     
     p.restore();
 }
@@ -337,7 +359,7 @@ void AnimOverlay::paintEvent(QPaintEvent*) {
 
 HeroPanel::HeroPanel(int idx, QWidget* parent)
     : QWidget(parent), m_idx(idx) {
-    setMinimumSize(260, 170);
+    setMinimumSize(320, 220);
     setCursor(Qt::PointingHandCursor);
     m_flashTimer = new QTimer(this);
     m_flashTimer->setInterval(20);
@@ -353,6 +375,34 @@ HeroPanel::HeroPanel(int idx, QWidget* parent)
         m_glowIntensity = 0.5f + 0.5f * qSin(m_animPhase);
         update();
     });
+}
+
+void HeroPanel::setPortraitImage(const QString& imagePath) {
+    if (QFile::exists(imagePath)) {
+        m_portraitPixmap.load(imagePath);
+        if (m_portraitMovie) {
+            delete m_portraitMovie;
+            m_portraitMovie = nullptr;
+        }
+        update();
+    }
+}
+
+void HeroPanel::setPortraitGif(const QString& gifPath) {
+    if (QFile::exists(gifPath)) {
+        if (!m_portraitLabel) {
+            m_portraitLabel = new QLabel(this);
+            m_portraitLabel->setAlignment(Qt::AlignCenter);
+        }
+        if (m_portraitMovie) {
+            delete m_portraitMovie;
+        }
+        m_portraitMovie = new QMovie(gifPath);
+        m_portraitLabel->setMovie(m_portraitMovie);
+        m_portraitMovie->start();
+        m_portraitLabel->show();
+        m_portraitLabel->raise();
+    }
 }
 
 void HeroPanel::setPlayer(Player* p) { m_player = p; update(); }
@@ -386,41 +436,41 @@ void HeroPanel::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::TextAntialiasing);
-    QRect r = rect().adjusted(2,2,-2,-2);
+    QRect r = rect().adjusted(3,3,-3,-3);
     
     QPainterPath bg;
-    bg.addRoundedRect(r, 12, 12);
+    bg.addRoundedRect(r, 15, 15);
     
     QLinearGradient grad(r.topLeft(), r.bottomLeft());
-    grad.setColorAt(0.0, QColor(0x2C,0x1A,0x50,240));
-    grad.setColorAt(1.0, QColor(0x0D,0x07,0x22,240));
+    grad.setColorAt(0.0, QColor(0x2C,0x1A,0x50,245));
+    grad.setColorAt(1.0, QColor(0x0D,0x07,0x22,245));
     p.fillPath(bg, grad);
     
     if (m_glowIntensity > 0.0) {
         QColor glowCol = C_GOLD;
-        glowCol.setAlphaF(m_glowIntensity * 0.4f);
+        glowCol.setAlphaF(m_glowIntensity * 0.5f);
         p.fillPath(bg, glowCol);
     }
     
     if (m_highlighted) {
-        for (int i = 6; i >= 1; --i) {
+        for (int i = 8; i >= 1; --i) {
             QColor gc = C_GOLD;
-            gc.setAlpha(25*i);
-            p.setPen(QPen(gc, i*2+3));
+            gc.setAlpha(30*i);
+            p.setPen(QPen(gc, i*3+4));
             p.setBrush(Qt::NoBrush);
             p.drawPath(bg);
         }
-        p.setPen(QPen(C_GOLD, 2.5));
+        p.setPen(QPen(C_GOLD, 3));
     } else if (m_hovered) {
-        p.setPen(QPen(QColor(0x88, 0x66, 0xAA), 1.5));
+        p.setPen(QPen(QColor(0x99, 0x77, 0xBB), 2));
     } else {
-        p.setPen(QPen(QColor(0x55,0x35,0x88), 1.5));
+        p.setPen(QPen(QColor(0x66,0x44,0x99), 2));
     }
     p.drawPath(bg);
     
     if (!m_player) {
-        p.setPen(QColor(120,100,160));
-        QFont f; f.setPixelSize(16); p.setFont(f);
+        p.setPen(QColor(140,120,180));
+        QFont f; f.setPixelSize(20); p.setFont(f);
         p.drawText(r, Qt::AlignCenter, QString::fromUtf8("等待中..."));
         return;
     }
@@ -431,31 +481,47 @@ void HeroPanel::paintEvent(QPaintEvent*) {
     QString heroName   = m_player->getHero() ? m_player->getHero()->getName() : "?";
     QString displayName = m_player->getHero() ? m_player->getHero()->getDisplayName() : "?";
     
-    QRect portrait(r.left()+10, r.top()+10, 75, 90);
-    QPainterPath pp; pp.addRoundedRect(portrait, 8, 8);
+    QRect portrait(r.left()+12, r.top()+12, 90, 110);
+    QPainterPath pp; pp.addRoundedRect(portrait, 10, 10);
     
     QColor themeCol = heroThemeColor(heroName);
-    QLinearGradient pg(portrait.topLeft(), portrait.bottomRight());
-    pg.setColorAt(0, themeCol.lighter(140));
-    pg.setColorAt(0.5, themeCol);
-    pg.setColorAt(1, themeCol.darker(160));
-    p.fillPath(pp, pg);
     
-    p.setPen(QPen(C_GOLD.darker(130), 1.5));
+    if (!m_portraitPixmap.isNull()) {
+        QPainterPath clipPath;
+        clipPath.addRoundedRect(portrait, 10, 10);
+        p.setClipPath(clipPath);
+        QPixmap scaled = m_portraitPixmap.scaled(portrait.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        p.drawPixmap(portrait, scaled);
+        p.setClipping(false);
+    } else {
+        QLinearGradient pg(portrait.topLeft(), portrait.bottomRight());
+        pg.setColorAt(0, themeCol.lighter(150));
+        pg.setColorAt(0.5, themeCol);
+        pg.setColorAt(1, themeCol.darker(160));
+        p.fillPath(pp, pg);
+    }
+    
+    p.setPen(QPen(C_GOLD.darker(120), 2));
     p.drawPath(pp);
     
-    QFont hf; hf.setPixelSize(40); hf.setBold(true); p.setFont(hf);
-    p.setPen(themeCol.lighter(160));
-    QString portChar = m_player->getHero() ? m_player->getHero()->portraitChar() : heroName.left(1);
-    p.drawText(portrait, Qt::AlignCenter, portChar);
+    if (m_portraitPixmap.isNull() && !m_portraitMovie) {
+        QFont hf; hf.setPixelSize(52); hf.setBold(true); p.setFont(hf);
+        p.setPen(themeCol.lighter(180));
+        QString portChar = m_player->getHero() ? m_player->getHero()->portraitChar() : heroName.left(1);
+        p.drawText(portrait, Qt::AlignCenter, portChar);
+    }
     
-    int tx = portrait.right() + 14;
-    QFont nf; nf.setPixelSize(15); nf.setBold(true); p.setFont(nf);
+    if (m_portraitLabel) {
+        m_portraitLabel->setGeometry(portrait);
+    }
+    
+    int tx = portrait.right() + 16;
+    QFont nf; nf.setPixelSize(20); nf.setBold(true); p.setFont(nf);
     p.setPen(C_GOLD);
-    p.drawText(tx, r.top()+26, displayName);
+    p.drawText(tx, r.top()+32, displayName);
     
     if (m_player->getHero()) {
-        QFont sf; sf.setPixelSize(11); p.setFont(sf);
+        QFont sf; sf.setPixelSize(14); p.setFont(sf);
         p.setPen(C_PURPLE);
         Hero* h = m_player->getHero();
         QString skillText;
@@ -465,15 +531,15 @@ void HeroPanel::paintEvent(QPaintEvent*) {
             if (i > 0) skillText += QString::fromUtf8(" ");
             skillText += prefix + info.name;
         }
-        p.drawText(tx, r.top()+46, skillText);
+        p.drawText(tx, r.top()+56, skillText);
     }
     
     int hp = m_player->getHealth(), maxHp = m_player->getMaxHealth();
-    int pipW=16, pipH=12, pipGap=3, startX=tx, startY=r.top()+62;
+    int pipW=20, pipH=16, pipGap=4, startX=tx, startY=r.top()+76;
     
     for (int i = 0; i < maxHp; ++i) {
         QRectF pip(startX+i*(pipW+pipGap), startY, pipW, pipH);
-        QPainterPath pp2; pp2.addRoundedRect(pip,3,3);
+        QPainterPath pp2; pp2.addRoundedRect(pip,4,4);
         QColor fc;
         if (i < hp) {
             float ratio=(float)hp/maxHp;
@@ -484,22 +550,22 @@ void HeroPanel::paintEvent(QPaintEvent*) {
         p.fillPath(pp2, fc);
     }
     
-    QFont hpf; hpf.setPixelSize(12); p.setFont(hpf);
-    p.setPen(QColor(200,200,200));
-    p.drawText(startX, startY+pipH+16, QString("%1/%2 HP").arg(hp).arg(maxHp));
-    p.setPen(QColor(160,140,200));
-    p.drawText(startX, startY+pipH+32, QString::fromUtf8("手牌: ") + QString::number(m_player->getHandCards().size()));
+    QFont hpf; hpf.setPixelSize(16); p.setFont(hpf);
+    p.setPen(QColor(220,220,220));
+    p.drawText(startX, startY+pipH+20, QString("%1/%2 HP").arg(hp).arg(maxHp));
+    p.setPen(QColor(180,160,220));
+    p.drawText(startX, startY+pipH+42, QString::fromUtf8("手牌: ") + QString::number(m_player->getHandCards().size()));
     
     if (m_flashAlpha > 0.0) {
-        p.fillPath(bg, QColor(0xFF,0x10,0x10,(int)(m_flashAlpha*120)));
+        p.fillPath(bg, QColor(0xFF,0x10,0x10,(int)(m_flashAlpha*140)));
     }
     if (m_healAlpha > 0.0) {
-        p.fillPath(bg, QColor(0x20,0xDD,0x60,(int)(m_healAlpha*100)));
+        p.fillPath(bg, QColor(0x20,0xDD,0x60,(int)(m_healAlpha*120)));
     }
     if (!alive) {
-        p.fillPath(bg, QColor(0,0,0,150));
-        QFont df; df.setPixelSize(24); df.setBold(true); p.setFont(df);
-        p.setPen(QColor(180,0,0,220));
+        p.fillPath(bg, QColor(0,0,0,180));
+        QFont df; df.setPixelSize(32); df.setBold(true); p.setFont(df);
+        p.setPen(QColor(200,0,0,240));
         p.drawText(r, Qt::AlignCenter, QString::fromUtf8("阵亡"));
     }
 }
@@ -521,8 +587,8 @@ void MainWindow::styleButton(QPushButton* btn, const QString& bg, const QString&
     btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     btn->setStyleSheet(QString(
         "QPushButton{background:%1;color:%2;"
-        "border:2px solid rgba(255,255,255,30);"
-        "border-radius:8px;font-size:16px;font-weight:bold;padding:12px;}"
+        "border:2px solid rgba(255,255,255,40);"
+        "border-radius:10px;font-size:18px;font-weight:bold;padding:14px;}"
         "QPushButton:hover{background:%3;border:2px solid %2;}"
         "QPushButton:pressed{background:%4;}"
         "QPushButton:disabled{background:#2A2A3E;color:#555;border:2px solid #3A3A4E;}"
@@ -562,67 +628,92 @@ void MainWindow::buildCharacterSelectUI() {
     m_characterSelectPage->setStyleSheet("background:transparent;");
     
     QVBoxLayout* layout = new QVBoxLayout(m_characterSelectPage);
-    layout->setContentsMargins(50, 50, 50, 50);
-    layout->setSpacing(30);
+    layout->setContentsMargins(60, 40, 60, 40);
+    layout->setSpacing(25);
     
     QLabel* title = new QLabel(QString::fromUtf8("三国杀 · 天意侵蚀"), m_characterSelectPage);
     title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet("color:#D4AF37;font-size:48px;font-weight:bold;");
+    title->setStyleSheet("color:#D4AF37;font-size:56px;font-weight:bold;");
     layout->addWidget(title);
     
     QLabel* subtitle = new QLabel(QString::fromUtf8("选择你的武将"), m_characterSelectPage);
     subtitle->setAlignment(Qt::AlignCenter);
-    subtitle->setStyleSheet("color:#CC99FF;font-size:24px;");
+    subtitle->setStyleSheet("color:#CC99FF;font-size:28px;");
     layout->addWidget(subtitle);
     
     QHBoxLayout* heroLayout = new QHBoxLayout();
-    heroLayout->setSpacing(40);
+    heroLayout->setSpacing(50);
     
-    struct HeroData { QString name; QString desc; QString color; };
+    struct HeroData { QString name; QString desc; QString color; QString skills; };
     QVector<HeroData> heroes = {
         { QString::fromUtf8("曹操"), 
           QString::fromUtf8("技能：\n[被]战无不胜の斗鸡眼\n[被]呱\n[主]汪\n[被]临终关怀"), 
-          QString("#C0202A") },
+          QString("#C0202A"),
+          QString::fromUtf8(
+            "【战无不胜の斗鸡眼】被动\n血量≤50%时，对全体敌方造成1点精神伤害\n\n"
+            "【呱】被动\n本回合未出牌时，对一名玩家造成1点精神伤害\n\n"
+            "【汪】主动\n指定一名玩家，双方轮流出【杀】，最先放弃的受1点伤害\n\n"
+            "【临终关怀】被动\n阵亡时，对全体玩家造成1点精神伤害"
+          )
+        },
         { QString::fromUtf8("刘备"), 
           QString::fromUtf8("技能：\n[被]自刎归天\n[被]无敌の二弟\n[主]仁之剑义之剑"), 
-          QString("#20B050") },
+          QString("#20B050"),
+          QString::fromUtf8(
+            "【自刎归天】被动\n打出【杀】时，无论敌我全员都受到1点伤害\n\n"
+            "【无敌の二弟】被动\n受到攻击时，可召唤二弟对攻击者造成1点伤害\n\n"
+            "【仁之剑义之剑】主动\n自己恢复1血，对目标玩家造成1点伤害"
+          )
+        },
         { QString::fromUtf8("司马懿"), 
           QString::fromUtf8("技能：\n[被]天意化骨掌\n[被]天意面瘫"), 
-          QString("#2050C0") }
+          QString("#2050C0"),
+          QString::fromUtf8(
+            "【天意化骨掌】被动\n可无限出【杀】，每回合出第二张【杀】时自动发动\n\n"
+            "【天意面瘫】被动\n打出【桃】时，自身恢复2点，其余存活玩家恢复1点"
+          )
+        }
     };
     
     for (const auto& h : heroes) {
         QWidget* heroCard = new QWidget(m_characterSelectPage);
-        heroCard->setFixedSize(280, 380);
+        heroCard->setFixedSize(360, 520);
         heroCard->setCursor(Qt::PointingHandCursor);
         heroCard->setStyleSheet(QString(
             "QWidget{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %1,stop:1 #1A0A2A);"
-            "border:3px solid #D4AF37;border-radius:15px;}"
+            "border:4px solid #D4AF37;border-radius:18px;}"
         ).arg(h.color));
         
         QVBoxLayout* cardLayout = new QVBoxLayout(heroCard);
-        cardLayout->setContentsMargins(20, 20, 20, 20);
-        cardLayout->setSpacing(15);
+        cardLayout->setContentsMargins(25, 25, 25, 25);
+        cardLayout->setSpacing(18);
         
         QLabel* nameLabel = new QLabel(QString::fromUtf8("邪·") + h.name, heroCard);
         nameLabel->setAlignment(Qt::AlignCenter);
-        nameLabel->setStyleSheet("color:#D4AF37;font-size:28px;font-weight:bold;background:transparent;border:none;");
+        nameLabel->setStyleSheet("color:#D4AF37;font-size:36px;font-weight:bold;background:transparent;border:none;");
         cardLayout->addWidget(nameLabel);
         
         QLabel* portraitLabel = new QLabel(h.name.left(1), heroCard);
         portraitLabel->setAlignment(Qt::AlignCenter);
         portraitLabel->setStyleSheet(QString(
-            "color:%1;font-size:80px;font-weight:bold;background:rgba(0,0,0,50);"
-            "border-radius:10px;border:none;"
-        ).arg(QColor(h.color).lighter(150).name()));
-        portraitLabel->setFixedHeight(120);
+            "color:%1;font-size:100px;font-weight:bold;background:rgba(0,0,0,80);"
+            "border-radius:15px;border:none;"
+        ).arg(QColor(h.color).lighter(160).name()));
+        portraitLabel->setFixedHeight(140);
+        portraitLabel->setObjectName("portraitLabel");
         cardLayout->addWidget(portraitLabel);
         
-        QLabel* descLabel = new QLabel(h.desc, heroCard);
+        QLabel* skillTitle = new QLabel(QString::fromUtf8("【技能介绍】"), heroCard);
+        skillTitle->setAlignment(Qt::AlignCenter);
+        skillTitle->setStyleSheet("color:#FFD700;font-size:18px;font-weight:bold;background:transparent;border:none;");
+        cardLayout->addWidget(skillTitle);
+        
+        QLabel* descLabel = new QLabel(h.skills, heroCard);
         descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         descLabel->setWordWrap(true);
-        descLabel->setStyleSheet("color:#CC99FF;font-size:13px;background:transparent;border:none;");
-        cardLayout->addWidget(descLabel);
+        descLabel->setStyleSheet("color:#CC99FF;font-size:15px;background:transparent;border:none;line-height:1.5;");
+        descLabel->setTextFormat(Qt::PlainText);
+        cardLayout->addWidget(descLabel, 1);
         
         heroCard->installEventFilter(this);
         heroCard->setProperty("heroName", h.name);
@@ -657,8 +748,8 @@ void MainWindow::buildGameUI() {
     m_turnLabel = new QLabel(QString::fromUtf8("选择角色开始游戏"), m_gamePage);
     m_turnLabel->setAlignment(Qt::AlignCenter);
     m_turnLabel->setStyleSheet(
-        "color:#D4AF37;font-size:24px;font-weight:bold;background:rgba(0,0,0,100);"
-        "padding:10px;border-radius:8px;");
+        "color:#D4AF37;font-size:28px;font-weight:bold;background:rgba(0,0,0,120);"
+        "padding:12px;border-radius:10px;");
     m_turnLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     
     QVBoxLayout* topRight = new QVBoxLayout();
@@ -670,17 +761,18 @@ void MainWindow::buildGameUI() {
     topArea->addLayout(topRight, 1);
     
     m_centerEffect = new CenterEffectWidget(m_gamePage);
+    m_centerEffect->lower();
     
     m_handArea = new QWidget(m_gamePage);
-    m_handArea->setMinimumHeight(140);
-    m_handArea->setStyleSheet("background:rgba(20,15,35,180);border-radius:10px;border:1px solid #3A2A5A;");
+    m_handArea->setMinimumHeight(160);
+    m_handArea->setStyleSheet("background:rgba(20,15,35,200);border-radius:12px;border:2px solid #3A2A5A;");
     
     m_log = new QTextBrowser(m_gamePage);
-    m_log->setMaximumWidth(220);
+    m_log->setMaximumWidth(280);
     m_log->setStyleSheet(
-        "QTextBrowser{background:rgba(8,6,20,230);color:#C8B8F0;"
-        "border:1px solid #3A2A5A;border-radius:8px;"
-        "font-family:'Microsoft YaHei';font-size:13px;padding:6px;}");
+        "QTextBrowser{background:rgba(8,6,20,240);color:#C8B8F0;"
+        "border:2px solid #3A2A5A;border-radius:10px;"
+        "font-family:'Microsoft YaHei';font-size:16px;padding:8px;}");
     
     QWidget* bottomArea = new QWidget(m_gamePage);
     QHBoxLayout* bottomLayout = new QHBoxLayout(bottomArea);
@@ -694,11 +786,11 @@ void MainWindow::buildGameUI() {
     
     m_btnEndTurn = new QPushButton(QString::fromUtf8("结束回合"), m_gamePage);
     styleButton(m_btnEndTurn, "#0A2035", "#A0D8EF");
-    m_btnEndTurn->setMinimumHeight(45);
+    m_btnEndTurn->setMinimumHeight(55);
     
     m_btnCancel = new QPushButton(QString::fromUtf8("取消"), m_gamePage);
     styleButton(m_btnCancel, "#1E1E1E", "#CC7777");
-    m_btnCancel->setMinimumHeight(45);
+    m_btnCancel->setMinimumHeight(55);
     m_btnCancel->hide();
     
     btnPanel->addWidget(m_btnEndTurn);
@@ -707,7 +799,7 @@ void MainWindow::buildGameUI() {
     for (int i = 0; i < 4; ++i) {
         QPushButton* btn = new QPushButton(m_gamePage);
         styleButton(btn, "#2A0A44", "#CC99FF");
-        btn->setMinimumHeight(45);
+        btn->setMinimumHeight(55);
         btn->hide();
         m_skillButtons.append(btn);
         btnPanel->addWidget(btn);
@@ -716,21 +808,21 @@ void MainWindow::buildGameUI() {
     QWidget* dodgeWidget = new QWidget(m_gamePage);
     QVBoxLayout* dodgeLayout = new QVBoxLayout(dodgeWidget);
     dodgeLayout->setContentsMargins(0, 0, 0, 0);
-    dodgeLayout->setSpacing(5);
+    dodgeLayout->setSpacing(8);
     
     QLabel* dodgeLabel = new QLabel(QString::fromUtf8("是否使用【闪】？"), m_gamePage);
     dodgeLabel->setAlignment(Qt::AlignCenter);
-    dodgeLabel->setStyleSheet("color:#FFD700;font-size:16px;font-weight:bold;");
+    dodgeLabel->setStyleSheet("color:#FFD700;font-size:20px;font-weight:bold;");
     dodgeLabel->hide();
     
     m_btnUseDodge = new QPushButton(QString::fromUtf8("使用【闪】"), m_gamePage);
     styleButton(m_btnUseDodge, "#2080C0", "#FFFFFF");
-    m_btnUseDodge->setMinimumHeight(40);
+    m_btnUseDodge->setMinimumHeight(50);
     m_btnUseDodge->hide();
     
     m_btnNoDodge = new QPushButton(QString::fromUtf8("不使用"), m_gamePage);
     styleButton(m_btnNoDodge, "#3A2A5A", "#AAAAAA");
-    m_btnNoDodge->setMinimumHeight(40);
+    m_btnNoDodge->setMinimumHeight(50);
     m_btnNoDodge->hide();
     
     dodgeLayout->addWidget(dodgeLabel);
@@ -758,6 +850,7 @@ void MainWindow::buildGameUI() {
     
     m_videoOverlay = new QWidget(m_gamePage);
     m_videoOverlay->setStyleSheet("background:black;");
+    m_videoOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     m_videoOverlay->hide();
     
     m_videoWidget = new QVideoWidget(m_videoOverlay);
@@ -795,6 +888,7 @@ void MainWindow::resizeEvent(QResizeEvent* e) {
     }
     if (m_centerEffect) {
         m_centerEffect->setGeometry(m_gamePage->geometry());
+        m_centerEffect->lower();
     }
 }
 
@@ -927,7 +1021,10 @@ void MainWindow::startGameWithHero(const QString& heroName) {
         m_heroPanels[i]->setPlayer(m_players[i]);
 
     m_engine = new GameEngine(this);
-    connect(m_engine, &GameEngine::logMessage,        m_log,  &QTextBrowser::append);
+    connect(m_engine, &GameEngine::logMessage, this, [this](const QString& msg){
+        m_log->append(msg);
+        m_log->verticalScrollBar()->setValue(m_log->verticalScrollBar()->maximum());
+    });
     connect(m_engine, &GameEngine::gameStateChanged,  this,   &MainWindow::onUpdateUI);
     connect(m_engine, &GameEngine::gameOver,          this,   &MainWindow::onGameOver);
     connect(m_engine, &GameEngine::animationRequest,  this,   &MainWindow::onAnimationRequest);
@@ -967,20 +1064,50 @@ void MainWindow::refreshSkillButtons() {
     Hero* h = m_players[0]->getHero();
     int skillCount = h->getSkillCount();
     
-    for (int i = 0; i < skillCount && i < m_skillButtons.size(); ++i) {
+    QVector<int> activeSkillIndices;
+    QVector<int> passiveSkillIndices;
+    
+    for (int i = 0; i < skillCount; ++i) {
         SkillInfo info = h->getSkillInfo(i);
-        QPushButton* btn = m_skillButtons[i];
+        if (info.isActive()) {
+            activeSkillIndices.append(i);
+        } else {
+            passiveSkillIndices.append(i);
+        }
+    }
+    
+    int btnIdx = 0;
+    for (int i : activeSkillIndices) {
+        if (btnIdx >= m_skillButtons.size()) break;
+        SkillInfo info = h->getSkillInfo(i);
+        QPushButton* btn = m_skillButtons[btnIdx];
         
-        QString prefix = info.isActive() ? QString::fromUtf8("[主]") : QString::fromUtf8("[被]");
+        QString prefix = QString::fromUtf8("[主]");
         btn->setText(prefix + info.name);
-        btn->setToolTip(info.desc);
-        btn->setEnabled(info.isActive());
+        btn->setToolTip(QString::fromUtf8("<html><head/><body><p style='white-space:pre-wrap;font-size:16px;'>"
+                                          "<b style='font-size:20px;color:#CC99FF;'>%1</b><br><br>%2</p></body></html>")
+                        .arg(info.name, info.desc));
+        btn->setEnabled(true);
         btn->show();
         
-        if (info.isActive()) {
-            disconnect(btn, nullptr, nullptr, nullptr);
-            connect(btn, &QPushButton::clicked, this, [this, i](){ onSkillClicked(i); });
-        }
+        disconnect(btn, nullptr, nullptr, nullptr);
+        connect(btn, &QPushButton::clicked, this, [this, i](){ onSkillClicked(i); });
+        btnIdx++;
+    }
+    
+    for (int i : passiveSkillIndices) {
+        if (btnIdx >= m_skillButtons.size()) break;
+        SkillInfo info = h->getSkillInfo(i);
+        QPushButton* btn = m_skillButtons[btnIdx];
+        
+        QString prefix = QString::fromUtf8("[被]");
+        btn->setText(prefix + info.name);
+        btn->setToolTip(QString::fromUtf8("<html><head/><body><p style='white-space:pre-wrap;font-size:16px;'>"
+                                          "<b style='font-size:20px;color:#AA77DD;'>%1</b><br><br>%2</p></body></html>")
+                        .arg(info.name, info.desc));
+        btn->setEnabled(false);
+        btn->show();
+        btnIdx++;
     }
 }
 
@@ -1059,17 +1186,20 @@ void MainWindow::onUpdateUI() {
     Player* cp  = m_engine->currentPlayer();
     if (cp) {
         m_turnLabel->setText(cp->getDisplayName() + QString::fromUtf8(" 的回合"));
-        for (int i = 0; i < 3; ++i) {
-            bool isCurrentTurn = (i == cur) && !m_selectingTarget;
-            m_heroPanels[i]->highlight(isCurrentTurn);
-            if (isCurrentTurn) m_heroPanels[i]->playTurnGlow();
+        
+        if (!m_selectingTarget) {
+            for (int i = 0; i < 3; ++i) {
+                bool isCurrentTurn = (i == cur);
+                m_heroPanels[i]->highlight(isCurrentTurn);
+                if (isCurrentTurn) m_heroPanels[i]->playTurnGlow();
+            }
         }
     }
 
     bool isHuman = m_engine->isHumanTurn();
-    m_btnEndTurn->setEnabled(isHuman);
+    m_btnEndTurn->setEnabled(isHuman && !m_selectingTarget);
     for (auto* btn : m_skillButtons) {
-        btn->setEnabled(isHuman);
+        btn->setEnabled(isHuman && !m_selectingTarget);
     }
     
     refreshSkillButtons();
@@ -1095,13 +1225,13 @@ void MainWindow::refreshHandCards() {
     int n = cards.size();
     
     QHBoxLayout* layout = new QHBoxLayout(m_handArea);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(10);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(12);
     
     if (n == 0) {
         QLabel* emptyLabel = new QLabel(QString::fromUtf8("没有手牌"), m_handArea);
         emptyLabel->setAlignment(Qt::AlignCenter);
-        emptyLabel->setStyleSheet("color:#666;font-size:18px;");
+        emptyLabel->setStyleSheet("color:#666;font-size:22px;");
         layout->addWidget(emptyLabel);
         return;
     }
@@ -1111,28 +1241,39 @@ void MainWindow::refreshHandCards() {
         QString light = col.lighter(170).name();
         QString dark  = col.darker(150).name();
         
-        QPushButton* btn = new QPushButton(cards[i]->getName(), m_handArea);
+        QString cardName = cards[i]->getName();
+        QString displayName = cardName;
+        if (cardName.length() > 4) {
+            displayName = cardName.left(4) + QString::fromUtf8("...");
+        }
+        
+        QPushButton* btn = new QPushButton(displayName, m_handArea);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setToolTip(cards[i]->getDescription());
+        
+        QString fullDesc = cards[i]->getDescription();
+        btn->setToolTip(QString::fromUtf8("<html><head/><body><p style='white-space:pre-wrap;font-size:16px;'>"
+                                          "<b style='font-size:20px;color:%1;'>%2</b><br><br>%3</p></body></html>")
+                        .arg(col.lighter(140).name(), cardName, fullDesc));
+        
         btn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
-        btn->setMinimumWidth(90);
-        btn->setMinimumHeight(110);
+        btn->setMinimumWidth(110);
+        btn->setMinimumHeight(130);
         
         btn->setStyleSheet(QString(
             "QPushButton{"
             "  background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %1,stop:1 %2);"
-            "  color:white;border:2px solid rgba(255,255,255,50);"
-            "  border-radius:8px;font-size:20px;font-weight:bold;"
+            "  color:white;border:3px solid rgba(255,255,255,60);"
+            "  border-radius:12px;font-size:22px;font-weight:bold;"
             "}"
             "QPushButton:hover{"
-            "  border:3px solid white;"
+            "  border:4px solid white;"
             "  background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %3,stop:1 %1);"
             "}"
             "QPushButton:pressed{background:%2;}"
             "QPushButton:disabled{opacity:0.5;}"
         ).arg(light, dark, col.lighter(200).name()));
         
-        btn->setEnabled(isHuman);
+        btn->setEnabled(isHuman && !m_selectingTarget);
         
         int idx = i;
         connect(btn, &QPushButton::clicked, this, [this,idx](){ onCardClicked(idx); });
@@ -1246,6 +1387,7 @@ void MainWindow::onShowCenterEffect(const QString& type, const QString& text, in
 }
 
 void MainWindow::onSkillEffectRequest(const QString& heroName, const QString& skillName, const QString& videoPath) {
+    Q_UNUSED(heroName)
     showCenterEffectText(skillName, QString::fromUtf8("skill"), 2000);
     playVideoEffect(videoPath);
 }
@@ -1282,18 +1424,18 @@ void MainWindow::onGameOver(const QString& winner) {
     QString msg = winner + QString::fromUtf8(" 获得胜利！");
     m_turnLabel->setText(msg);
     showFloatingText(msg, 1, "#FFD700");
-    showCenterEffectText(QString::fromUtf8("胜利"), QString::fromUtf8("gameover"), 2000);
+    showCenterEffectText(QString::fromUtf8("胜利"), QString::fromUtf8("gameover"), 2500);
 
-    QTimer::singleShot(500, this, [this, msg](){
+    QTimer::singleShot(800, this, [this, msg](){
         QMessageBox mb(this);
         mb.setWindowTitle(QString::fromUtf8("游戏结束"));
         mb.setText(msg);
         mb.setStyleSheet(
             "QMessageBox{background:#0D0A1A;}"
-            "QLabel{color:#D4AF37;font-size:20px;font-weight:bold;}"
+            "QLabel{color:#D4AF37;font-size:26px;font-weight:bold;}"
             "QPushButton{background:#3A1A5C;color:#CC99FF;"
-            "border:1px solid #6A3A8C;border-radius:8px;"
-            "padding:10px 30px;font-size:16px;font-weight:bold;}"
+            "border:2px solid #6A3A8C;border-radius:10px;"
+            "padding:12px 40px;font-size:20px;font-weight:bold;}"
             "QPushButton:hover{background:#5A2A8C;}");
         mb.exec();
         

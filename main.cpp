@@ -15,11 +15,11 @@ int main(int argc, char *argv[])
         "}"
         "QToolTip{"
         "  background:#1E143A;color:#D4AF37;"
-        "  border:1px solid #D4AF37;"
-        "  font-size:12px;padding:6px;border-radius:4px;"
+        "  border:2px solid #D4AF37;"
+        "  font-size:16px;padding:10px;border-radius:6px;"
         "}"
         "QMessageBox{background:#0D0A1A;}"
-        "QMessageBox QLabel{color:#D4AF37;font-size:14px;}"
+        "QMessageBox QLabel{color:#D4AF37;font-size:18px;}"
     );
 
     MainWindow w;

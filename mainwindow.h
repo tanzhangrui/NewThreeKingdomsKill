@@ -12,6 +12,7 @@
 #include <QMediaPlayer>
 #include <QVideoWidget>
 #include <QStackedWidget>
+#include <QMovie>
 #include <functional>
 
 #include "gameengine.h"
@@ -132,6 +133,8 @@ public:
     void flashHeal();
     void playTurnGlow();
     int  playerIndex() const { return m_idx; }
+    void setPortraitImage(const QString& imagePath);
+    void setPortraitGif(const QString& gifPath);
 
 signals:
     void clicked(int idx);
@@ -153,6 +156,9 @@ private:
     QTimer* m_flashTimer  = nullptr;
     QTimer* m_glowTimer   = nullptr;
     float   m_animPhase   = 0.0f;
+    QPixmap m_portraitPixmap;
+    QMovie* m_portraitMovie = nullptr;
+    QLabel* m_portraitLabel = nullptr;
 };
 
 class CenterEffectWidget : public QWidget {
