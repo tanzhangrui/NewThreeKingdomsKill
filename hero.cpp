@@ -1,122 +1,338 @@
 #include "Hero.h"
 #include "Player.h"
 #include "Card.h"
+#include "gameengine.h"
 #include <QRandomGenerator>
 #include <QDebug>
 
-// ---- Hero base ----
-Hero::Hero(const QString& heroName,
-           const QString& skill1Name, const QString& skill1Desc,
-           const QString& skill2Name, const QString& skill2Desc,
-           int hp)
-    : name(heroName),
-      sName1(skill1Name), sDesc1(skill1Desc),
-      sName2(skill2Name), sDesc2(skill2Desc),
-      maxHp(hp) {}
+Hero::Hero(const QString& heroName, int hp)
+    : m_name(heroName), m_maxHp(hp) {}
 
 // ============================================================
-// 曹操
-//   技能0「奸雄」：立即摸1张牌
-//   技能1「护驾」：令目标出【闪】，否则受1伤
+// 曹操 - 4个技能
+// 技能0：战无不胜の斗鸡眼（被动）- 血量<=50%时对全体敌方造成1点精神伤害
+// 技能1："呱"（被动）- 本轮不出牌，对指定玩家造成1点精神伤害
+// 技能2："汪"（主动）- 指定玩家轮流出杀，最先放弃的受1点伤害
+// 技能3：临终关怀（被动）- 死亡时对全体玩家造成1点精神伤害
 // ============================================================
-CaoCao::CaoCao()
-    : Hero("\u66f9\u64cd",
-           "\u5978\u96c4", "\u7acb\u5373\u6478\u53961\u5f20\u724c\uff08\u88ab\u52a8\u89e6\u53d1\u6f14\u793a\uff09",
-           "\u62a4\u9a7e", "\u4ee4\u76ee\u6807\u51fa\u3010\u95ea\u3011\uff0c\u5426\u5219\u53d7\u5c061\u70b9\u4f24\u5bb3",
-           4) {}
+CaoCao::CaoCao() : Hero(QString::fromUtf8("曹操"), 4) {}
 
-bool CaoCao::activateSkill(int skillIndex, Player* self, Player* target) {
-    if (!self) return false;
-    if (skillIndex == 0) {
-        // 奸雄：摸1张牌
-        self->drawCards(1);
-        qDebug() << "[\u66f9\u64cd\u00b7\u5978\u96c4]" << self->getName() << "\u64781\u5f20\u724c";
-        return true;
-    } else {
-        // 护驾：令目标出闪否则受伤
+SkillInfo CaoCao::getSkillInfo(int index) const {
+    switch (index) {
+        case 0: return { QString::fromUtf8("战无不胜の斗鸡眼"),
+                        QString::fromUtf8("【被动】血量≤50%时，对全体敌方造成1点精神伤害（回合开始时触发）"),
+                        SkillType::Passive };
+        case 1: return { QString::fromUtf8("呱"),
+                        QString::fromUtf8("【被动】本回合未出牌时，对一名玩家造成1点精神伤害（回合结束时触发）"),
+                        SkillType::Passive };
+        case 2: return { QString::fromUtf8("汪"),
+                        QString::fromUtf8("【主动】指定一名玩家，敌我双方轮流出【杀】，最先放弃的受1点伤害"),
+                        SkillType::Active };
+        case 3: return { QString::fromUtf8("临终关怀"),
+                        QString::fromUtf8("【被动】阵亡时，对全体玩家造成1点精神伤害"),
+                        SkillType::Passive };
+        default: return { QString(), QString(), SkillType::Passive };
+    }
+}
+
+void CaoCao::onTurnStart(Player* self, GameEngine* engine) {
+    m_hasPlayedCardThisTurn = false;
+    
+    if (!self || !engine) return;
+    
+    int hp = self->getHealth();
+    int maxHp = self->getMaxHealth();
+    
+    if (hp > 0 && hp * 2 <= maxHp && !m_doujiyanTriggered) {
+        m_doujiyanTriggered = true;
+        emit engine->logMessage(QString::fromUtf8("【%1·战无不胜の斗鸡眼】发动！对全体敌方造成1点精神伤害！")
+                               .arg(self->getHero()->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("战无不胜の斗鸡眼"), 
+                                        QString::fromUtf8("videos/caocao_doujiyan.mp4"));
+        
+        for (int i = 0; i < engine->playerCount(); ++i) {
+            Player* p = engine->playerAt(i);
+            if (p && p != self && p->isAlive()) {
+                p->receiveDamage(1);
+                emit engine->animationRequest("damage", engine->playerIndex(self), i, "1");
+            }
+        }
+        emit engine->gameStateChanged();
+        engine->checkGameOver();
+    }
+}
+
+void CaoCao::onTurnEnd(Player* self, GameEngine* engine) {
+    if (!self || !engine) return;
+    
+    if (!m_hasPlayedCardThisTurn && self->isAlive()) {
+        emit engine->logMessage(QString::fromUtf8("【%1·呱】发动！本回合未出牌，可指定一名玩家造成1点精神伤害！")
+                               .arg(self->getHero()->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("呱"), 
+                                        QString::fromUtf8("videos/caocao_gua.mp4"));
+    }
+    
+    m_doujiyanTriggered = false;
+}
+
+void CaoCao::onDeath(Player* self, GameEngine* engine) {
+    if (!self || !engine) return;
+    
+    emit engine->logMessage(QString::fromUtf8("【%1·临终关怀】发动！对全体玩家造成1点精神伤害！")
+                           .arg(self->getHero()->getName()));
+    emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                    QString::fromUtf8("临终关怀"), 
+                                    QString::fromUtf8("videos/caocao_linzhong.mp4"));
+    
+    for (int i = 0; i < engine->playerCount(); ++i) {
+        Player* p = engine->playerAt(i);
+        if (p && p != self && p->isAlive()) {
+            p->receiveDamage(1);
+            emit engine->animationRequest("damage", engine->playerIndex(self), i, "1");
+        }
+    }
+    emit engine->gameStateChanged();
+}
+
+bool CaoCao::activateSkill(int skillIndex, Player* self, Player* target, GameEngine* engine) {
+    if (!self || !engine) return false;
+    
+    if (skillIndex == 2) {
         if (!target) return false;
-        bool hasDodge = false;
-        const auto& cards = target->getHandCards();
-        for (int i = 0; i < cards.size(); ++i) {
-            if (cards.at(i)->getType() == CardType::Dodge) {
-                hasDodge = true;
-                target->removeCardByIndex(i);
+        
+        emit engine->logMessage(QString::fromUtf8("【%1·汪】发动！与%2进行狗叫对决！")
+                               .arg(self->getHero()->getName()).arg(target->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("汪"), 
+                                        QString::fromUtf8("videos/caocao_wang.mp4"));
+        
+        bool selfHasKill = false;
+        bool targetHasKill = false;
+        int selfKillIdx = -1;
+        int targetKillIdx = -1;
+        
+        const auto& selfCards = self->getHandCards();
+        for (int i = 0; i < selfCards.size(); ++i) {
+            if (selfCards[i]->getType() == CardType::Kill) {
+                selfHasKill = true;
+                selfKillIdx = i;
                 break;
             }
         }
-        if (!hasDodge) {
+        
+        const auto& targetCards = target->getHandCards();
+        for (int i = 0; i < targetCards.size(); ++i) {
+            if (targetCards[i]->getType() == CardType::Kill) {
+                targetHasKill = true;
+                targetKillIdx = i;
+                break;
+            }
+        }
+        
+        if (!selfHasKill && !targetHasKill) {
+            emit engine->logMessage(QString::fromUtf8("双方都没有【杀】，平局！"));
+            return true;
+        }
+        
+        if (!selfHasKill) {
+            emit engine->logMessage(QString::fromUtf8("%1没有【杀】，受到1点伤害！").arg(self->getName()));
+            self->receiveDamage(1);
+            emit engine->animationRequest("damage", engine->playerIndex(target), engine->playerIndex(self), "1");
+        } else if (!targetHasKill) {
+            emit engine->logMessage(QString::fromUtf8("%1没有【杀】，受到1点伤害！").arg(target->getName()));
             target->receiveDamage(1);
-            qDebug() << "[\u66f9\u64cd\u00b7\u62a4\u9a7e]" << target->getName() << "\u65e0\u95ea\uff0c\u53d71\u4f24";
+            emit engine->animationRequest("damage", engine->playerIndex(self), engine->playerIndex(target), "1");
+            self->removeCardByIndex(selfKillIdx);
         } else {
-            qDebug() << "[\u66f9\u64cd\u00b7\u62a4\u9a7e]" << target->getName() << "\u51fa\u95ea\uff0c\u5316\u89e3";
+            emit engine->logMessage(QString::fromUtf8("双方都有【杀】，各自消耗一张【杀】！"));
+            self->removeCardByIndex(selfKillIdx);
+            target->removeCardByIndex(targetKillIdx);
         }
+        
+        emit engine->gameStateChanged();
+        engine->checkGameOver();
         return true;
     }
+    
+    return false;
 }
 
 // ============================================================
-// 司马懿
-//   技能0「反馈」：摸1张牌并对目标造成1伤
-//   技能1「鬼才」：消耗1张手牌，令目标弃1张手牌
+// 刘备 - 3个技能
+// 技能0：自刎归天（被动）- 打出"杀"时，全员受1点伤害
+// 技能1：无敌の二弟（被动）- 受攻击时可召唤二弟，对对方造成1点伤害
+// 技能2：仁之剑义之剑（主动）- 选择一名玩家恢复1血，对另一玩家造成1点伤害
 // ============================================================
-SimaYi::SimaYi()
-    : Hero("\u53f8\u9a6c\u61ff",
-           "\u53cd\u9988", "\u6478\u53961\u5f20\u724c\uff0c\u5e76\u5bf9\u76ee\u6807\u9020\u621011\u70b9\u4f24\u5bb3",
-           "\u9b3c\u624d", "\u6d88\u800811\u5f20\u624b\u724c\uff0c\u4ee4\u76ee\u6807\u5f131\u5f20\u624b\u724c",
-           3) {}
+LiuBei::LiuBei() : Hero(QString::fromUtf8("刘备"), 4) {}
 
-bool SimaYi::activateSkill(int skillIndex, Player* self, Player* target) {
-    if (!self) return false;
-    if (skillIndex == 0) {
-        self->drawCards(1);
-        if (target) target->receiveDamage(1);
-        qDebug() << "[\u53f8\u9a6c\u61ff\u00b7\u53cd\u9988] \u64781\u5f20\u5e76\u5bf9"
-                 << (target ? target->getName() : QString("\u65e0")) << "\u9020\u621011\u4f24";
-        return true;
-    } else {
-        if (!target || self->getHandCards().isEmpty()) return false;
-        int idx = QRandomGenerator::global()->bounded(self->getHandCards().size());
-        self->removeCardByIndex(idx);
-        if (!target->getHandCards().isEmpty()) {
-            int tidx = QRandomGenerator::global()->bounded(target->getHandCards().size());
-            target->removeCardByIndex(tidx);
-        }
-        qDebug() << "[\u53f8\u9a6c\u61ff\u00b7\u9b3c\u624d] \u6d88\u80801\u724c\uff0c\u4ee4"
-                 << target->getName() << "\u51311\u5f20";
-        return true;
+SkillInfo LiuBei::getSkillInfo(int index) const {
+    switch (index) {
+        case 0: return { QString::fromUtf8("自刎归天"),
+                        QString::fromUtf8("【被动】打出【杀】时，无论敌我全员都受到1点伤害"),
+                        SkillType::Passive };
+        case 1: return { QString::fromUtf8("无敌の二弟"),
+                        QString::fromUtf8("【被动】受到攻击时，可召唤二弟对攻击者造成1点伤害"),
+                        SkillType::Passive };
+        case 2: return { QString::fromUtf8("仁之剑义之剑"),
+                        QString::fromUtf8("【主动】选择一名玩家恢复1血，对另一玩家造成1点伤害"),
+                        SkillType::Active };
+        default: return { QString(), QString(), SkillType::Passive };
     }
 }
 
-// ============================================================
-// 刘备
-//   技能0「仁德」：给目标1张手牌，回复自身1血
-//   技能1「激将」：对目标造成1伤，令其弃1张牌
-// ============================================================
-LiuBei::LiuBei()
-    : Hero("\u5218\u5907",
-           "\u4ec1\u5fb7", "\u7ed9\u4e88\u76ee\u6807\u00b11\u5f20\u624b\u724c\uff0c\u56de\u590d\u81ea\u8eab1\u70b9\u4f53\u529b",
-           "\u6fc0\u5c06", "\u5bf9\u76ee\u6807\u9020\u621011\u70b9\u4f24\u5bb3\uff0c\u4ee4\u5176\u5f131\u5f20\u724c",
-           4) {}
+void LiuBei::onCardPlayed(Player* self, const QString& cardName, Player* target, GameEngine* engine) {
+    Q_UNUSED(target)
+    if (!self || !engine) return;
+    
+    if (cardName == QString::fromUtf8("杀")) {
+        emit engine->logMessage(QString::fromUtf8("【%1·自刎归天】发动！全员受到1点伤害！")
+                               .arg(self->getHero()->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("自刎归天"), 
+                                        QString::fromUtf8("videos/liubei_ziwen.mp4"));
+        
+        for (int i = 0; i < engine->playerCount(); ++i) {
+            Player* p = engine->playerAt(i);
+            if (p && p->isAlive()) {
+                p->receiveDamage(1);
+                emit engine->animationRequest("damage", engine->playerIndex(self), i, "1");
+            }
+        }
+        emit engine->gameStateChanged();
+        engine->checkGameOver();
+    }
+}
 
-bool LiuBei::activateSkill(int skillIndex, Player* self, Player* target) {
-    if (!self) return false;
-    if (skillIndex == 0) {
-        if (self->getHandCards().isEmpty() || !target) return false;
-        int idx = QRandomGenerator::global()->bounded(self->getHandCards().size());
-        Card* gift = self->getHandCards().at(idx);
-        self->removeCardByPointer(gift, false);
-        target->addCard(gift);
-        self->restoreHealth(1);
-        qDebug() << "[\u5218\u5907\u00b7\u4ec1\u5fb7] \u7ed9" << target->getName() << "1\u5f20\u724c\uff0c\u56de\u590d1\u8840";
+void LiuBei::onDamaged(Player* self, int dmg, GameEngine* engine) {
+    if (!self || !engine || dmg <= 0) return;
+    
+    m_canSummonErDi = true;
+    emit engine->logMessage(QString::fromUtf8("【%1·无敌の二弟】可发动！是否召唤二弟反击？")
+                           .arg(self->getHero()->getName()));
+}
+
+bool LiuBei::activateSkill(int skillIndex, Player* self, Player* target, GameEngine* engine) {
+    if (!self || !engine) return false;
+    
+    if (skillIndex == 1) {
+        if (!m_canSummonErDi) {
+            emit engine->logMessage(QString::fromUtf8("【无敌の二弟】需要在受到攻击后才能发动！"));
+            return false;
+        }
+        
+        Player* attacker = nullptr;
+        for (int i = 0; i < engine->playerCount(); ++i) {
+            if (i != engine->playerIndex(self)) {
+                Player* p = engine->playerAt(i);
+                if (p && p->isAlive()) {
+                    attacker = p;
+                    break;
+                }
+            }
+        }
+        
+        if (attacker) {
+            emit engine->logMessage(QString::fromUtf8("【%1·无敌の二弟】发动！召唤二弟对%2造成1点伤害！")
+                                   .arg(self->getHero()->getName()).arg(attacker->getName()));
+            emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                            QString::fromUtf8("无敌の二弟"), 
+                                            QString::fromUtf8("videos/liubei_erdi.mp4"));
+            attacker->receiveDamage(1);
+            emit engine->animationRequest("damage", engine->playerIndex(self), engine->playerIndex(attacker), "1");
+            emit engine->gameStateChanged();
+            engine->checkGameOver();
+        }
+        
+        m_canSummonErDi = false;
         return true;
-    } else {
+    }
+    
+    if (skillIndex == 2) {
         if (!target) return false;
+        
+        emit engine->logMessage(QString::fromUtf8("【%1·仁之剑义之剑】发动！%2恢复1血，%3受到1点伤害！")
+                               .arg(self->getHero()->getName()).arg(self->getName()).arg(target->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("仁之剑义之剑"), 
+                                        QString::fromUtf8("videos/liubei_jian.mp4"));
+        
+        self->restoreHealth(1);
+        emit engine->animationRequest("heal", engine->playerIndex(self), engine->playerIndex(self), "1");
+        
         target->receiveDamage(1);
-        if (!target->getHandCards().isEmpty()) {
-            int tidx = QRandomGenerator::global()->bounded(target->getHandCards().size());
-            target->removeCardByIndex(tidx);
-        }
-        qDebug() << "[\u5218\u5907\u00b7\u6fc0\u5c06] \u5bf9" << target->getName() << "\u9020\u621011\u4f24\u5e76\u4ee4\u5176\u51311\u5f20";
+        emit engine->animationRequest("damage", engine->playerIndex(self), engine->playerIndex(target), "1");
+        
+        emit engine->gameStateChanged();
+        engine->checkGameOver();
         return true;
+    }
+    
+    return false;
+}
+
+// ============================================================
+// 司马懿 - 2个技能
+// 技能0：天意化骨掌（被动）- 可无限出杀（第二张杀视为发动）
+// 技能1：天意面瘫（被动）- 打出"桃"时，自身恢复2点，其余人恢复1点
+// ============================================================
+SimaYi::SimaYi() : Hero(QString::fromUtf8("司马懿"), 3) {}
+
+SkillInfo SimaYi::getSkillInfo(int index) const {
+    switch (index) {
+        case 0: return { QString::fromUtf8("天意化骨掌"),
+                        QString::fromUtf8("【被动】可无限出【杀】，每回合出第二张【杀】时自动发动"),
+                        SkillType::Passive };
+        case 1: return { QString::fromUtf8("天意面瘫"),
+                        QString::fromUtf8("【被动】打出【桃】时，自身恢复2点，其余存活玩家恢复1点"),
+                        SkillType::Passive };
+        default: return { QString(), QString(), SkillType::Passive };
+    }
+}
+
+bool SimaYi::activateSkill(int skillIndex, Player* self, Player* target, GameEngine* engine) {
+    Q_UNUSED(skillIndex) Q_UNUSED(self) Q_UNUSED(target) Q_UNUSED(engine)
+    return false;
+}
+
+void SimaYi::onTurnStart(Player* self, GameEngine* engine) {
+    Q_UNUSED(self) Q_UNUSED(engine)
+    m_killCountThisTurn = 0;
+}
+
+void SimaYi::onCardPlayed(Player* self, const QString& cardName, Player* target, GameEngine* engine) {
+    Q_UNUSED(target)
+    if (!self || !engine) return;
+    
+    if (cardName == QString::fromUtf8("杀")) {
+        m_killCountThisTurn++;
+        if (m_killCountThisTurn >= 2) {
+            emit engine->logMessage(QString::fromUtf8("【%1·天意化骨掌】发动！无限出杀！")
+                                   .arg(self->getHero()->getName()));
+            emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                            QString::fromUtf8("天意化骨掌"), 
+                                            QString::fromUtf8("videos/simayi_huagu.mp4"));
+        }
+    }
+    
+    if (cardName == QString::fromUtf8("桃")) {
+        emit engine->logMessage(QString::fromUtf8("【%1·天意面瘫】发动！自身恢复2点，其余人恢复1点！")
+                               .arg(self->getHero()->getName()));
+        emit engine->skillEffectRequest(self->getHero()->getName(), 
+                                        QString::fromUtf8("天意面瘫"), 
+                                        QString::fromUtf8("videos/simayi_miantan.mp4"));
+        
+        self->restoreHealth(1);
+        emit engine->animationRequest("heal", engine->playerIndex(self), engine->playerIndex(self), "1");
+        
+        for (int i = 0; i < engine->playerCount(); ++i) {
+            Player* p = engine->playerAt(i);
+            if (p && p != self && p->isAlive()) {
+                p->restoreHealth(1);
+                emit engine->animationRequest("heal", engine->playerIndex(self), i, "1");
+            }
+        }
+        emit engine->gameStateChanged();
     }
 }

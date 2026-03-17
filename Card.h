@@ -7,6 +7,7 @@
 #include <memory>
 
 class Player;
+class GameEngine;
 
 enum class CardType {
     Kill,
@@ -15,18 +16,15 @@ enum class CardType {
     Trick
 };
 
-// ============================================================
-// Card  ——  抽象基类（纯虚 play，虚析构）
-// ============================================================
 class Card {
 public:
     explicit Card(const QString& n, const QString& d, CardType t);
     virtual ~Card() = default;
 
-    // 纯虚函数：多态核心，所有子类必须实现
-    virtual bool play(Player* from, Player* to) = 0;
+    virtual bool play(Player* from, Player* to, GameEngine* engine);
+    virtual bool canRespondWithDodge() const { return false; }
+    virtual bool requiresTarget() const { return true; }
 
-    // 卡牌外观（子类可重写以定制颜色主题）
     virtual QString colorHex() const { return "#C02020"; }
     virtual QString iconText() const { return name; }
 
@@ -40,47 +38,50 @@ protected:
     CardType type;
 };
 
-// ============================================================
-// 具体卡牌
-// ============================================================
 class KillCard : public Card {
 public:
     KillCard();
-    bool    play(Player* from, Player* to) override;
+    bool play(Player* from, Player* to, GameEngine* engine) override;
+    bool canRespondWithDodge() const override { return true; }
     QString colorHex() const override { return "#C0202A"; }
-    QString iconText()  const override { return "\u6740"; }
+    QString iconText() const override { return QString::fromUtf8("杀"); }
 };
 
 class DodgeCard : public Card {
 public:
     DodgeCard();
-    bool    play(Player* from, Player* to) override;
+    bool play(Player* from, Player* to, GameEngine* engine) override;
+    bool requiresTarget() const override { return false; }
     QString colorHex() const override { return "#2080C0"; }
-    QString iconText()  const override { return "\u95EA"; }
+    QString iconText() const override { return QString::fromUtf8("闪"); }
 };
 
 class PeachCard : public Card {
 public:
     PeachCard();
-    bool    play(Player* from, Player* to) override;
+    bool play(Player* from, Player* to, GameEngine* engine) override;
     QString colorHex() const override { return "#DD6090"; }
-    QString iconText()  const override { return "\u6843"; }
+    QString iconText() const override { return QString::fromUtf8("桃"); }
 };
 
-// ---- 锦囊基类（中间层，体现继承层次）----
 class TrickCard : public Card {
 public:
-    enum TrickSubType { StealCard, DiscardCard };
+    enum TrickSubType { 
+        StealCard, 
+        DiscardCard, 
+        JumpTigerShark,
+        TianyiInvasion
+    };
     explicit TrickCard(TrickSubType subType = StealCard);
-    bool    play(Player* from, Player* to) override;
+    bool play(Player* from, Player* to, GameEngine* engine) override;
+    bool requiresTarget() const override;
     QString colorHex() const override { return "#A055D0"; }
+    QString getVideoPath() const;
+    
 private:
     TrickSubType subType;
 };
 
-// ============================================================
-// 工厂函数：随机创建一张牌
-// ============================================================
 Card* createRandomCard();
 
 #endif // CARD_H

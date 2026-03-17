@@ -21,18 +21,25 @@ void Player::setHero(Hero* h) {
     }
 }
 
+QString Player::getDisplayName() const {
+    if (m_hero) {
+        return m_hero->getDisplayName();
+    }
+    return m_name;
+}
+
 void Player::receiveDamage(int amount) {
     if (amount <= 0) return;
     m_hp -= amount;
     if (m_hp < 0) m_hp = 0;
-    qDebug() << m_name << "\u53d7" << amount << "\u4f24\uff0c\u5269\u4f59HP:" << m_hp;
+    qDebug() << m_name << QString::fromUtf8("受") << amount << QString::fromUtf8("伤，剩余HP:") << m_hp;
 }
 
 void Player::restoreHealth(int amount) {
     if (amount <= 0) return;
     m_hp += amount;
     if (m_hp > m_maxHp) m_hp = m_maxHp;
-    qDebug() << m_name << "\u56de\u590d" << amount << "\u8840\uff0c\u5f53\u524dHP:" << m_hp;
+    qDebug() << m_name << QString::fromUtf8("回复") << amount << QString::fromUtf8("血，当前HP:") << m_hp;
 }
 
 void Player::drawCards(int count) {
@@ -40,7 +47,7 @@ void Player::drawCards(int count) {
         Card* c = createRandomCard();
         if (c) {
             m_hand.append(c);
-            qDebug() << m_name << "\u6478\u5230:" << c->getName();
+            qDebug() << m_name << QString::fromUtf8("摸到:") << c->getName();
         }
     }
 }
@@ -65,7 +72,26 @@ bool Player::removeCardByPointer(Card* card, bool deleteCard) {
     return true;
 }
 
+int Player::findDodgeCard() const {
+    for (int i = 0; i < m_hand.size(); ++i) {
+        if (m_hand[i]->getType() == CardType::Dodge) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int Player::findKillCard() const {
+    for (int i = 0; i < m_hand.size(); ++i) {
+        if (m_hand[i]->getType() == CardType::Kill) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void Player::resetTurnState() {
     m_killUsed  = false;
     m_skillUsed = false;
+    m_playedCardThisTurn = false;
 }
