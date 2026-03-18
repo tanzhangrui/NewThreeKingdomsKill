@@ -65,8 +65,8 @@ bool TrickCard::requiresTarget() const {
 
 QString TrickCard::getVideoPath() const {
     switch (subType) {
-        case JumpTigerShark: return QString::fromUtf8("videos/trick_tiaotiaohu.mp4");
-        case TianyiInvasion: return QString::fromUtf8("videos/trick_tianyi.mp4");
+        case JumpTigerShark: return QString::fromUtf8("video/trick_tiaotiaohu.mp4");
+        case TianyiInvasion: return QString::fromUtf8("video/trick_tianyi.mp4");
         default: return QString();
     }
 }
@@ -95,9 +95,9 @@ bool TrickCard::play(Player* from, Player* to, GameEngine* engine) {
         }
         case JumpTigerShark: {
             emit engine->logMessage(QString::fromUtf8("【一对跳跳虎两条脆脆鲨】发动！全体玩家回复1点血量！"));
-            emit engine->skillEffectRequest(QString::fromUtf8("跳跳虎脆脆鲨"), 
-                                            QString::fromUtf8("一对跳跳虎两条脆脆鲨"), 
-                                            QString::fromUtf8("videos/trick_tiaotiaohu.mp4"));
+            emit engine->skillEffectRequest(QString::fromUtf8("跳跳虎脆脆鲨"),
+                                            QString::fromUtf8("一对跳跳虎两条脆脆鲨"),
+                                            QString());
             
             for (int i = 0; i < engine->playerCount(); ++i) {
                 Player* p = engine->playerAt(i);
@@ -111,9 +111,9 @@ bool TrickCard::play(Player* from, Player* to, GameEngine* engine) {
         }
         case TianyiInvasion: {
             emit engine->logMessage(QString::fromUtf8("【天意侵袭】发动！全体玩家必须出【杀】，否则受到1点伤害！"));
-            emit engine->skillEffectRequest(QString::fromUtf8("天意侵袭"), 
-                                            QString::fromUtf8("天意侵袭"), 
-                                            QString::fromUtf8("videos/trick_tianyi.mp4"));
+            emit engine->skillEffectRequest(QString::fromUtf8("天意侵袭"),
+                                            QString::fromUtf8("天意侵袭"),
+                                            QString());
             
             for (int i = 0; i < engine->playerCount(); ++i) {
                 Player* p = engine->playerAt(i);

@@ -32,10 +32,10 @@ void GameEngine::startGame(Player* p0, Player* p1, Player* p2) {
         p->drawCards(4);
 
     emit logMessage(QString::fromUtf8("══════ 天意侵蚀·三方对弈 开始！══════"));
-    emit logMessage(QString::fromUtf8("玩家：【%1】 vs AI-邪：【%2】 vs AI-邪：【%3】")
+    emit logMessage(QString::fromUtf8("玩家：【%1】 vs 邪·%2 vs 邪·%3")
                     .arg(p0->getHero() ? p0->getHero()->getDisplayName() : "?")
-                    .arg(p1->getHero() ? p1->getHero()->getDisplayName() : "?")
-                    .arg(p2->getHero() ? p2->getHero()->getDisplayName() : "?"));
+                    .arg(p1->getHero() ? p1->getHero()->getName() : "?")
+                    .arg(p2->getHero() ? p2->getHero()->getName() : "?"));
     
     emit showCenterEffect(QString::fromUtf8("gamestart"), QString::fromUtf8("天意侵蚀"), 2000);
     startTurn();
@@ -426,4 +426,57 @@ void GameEngine::checkGameOver() {
         emit gameOver(winner);
         endGame();
     }
+}
+
+void GameEngine::executeSecondTargetSkill(int skillIndex, int secondTargetIdx) {
+    if (!m_running) return;
+
+    Player* self = currentPlayer();
+    if (!self || !self->getHero()) return;
+
+    Player* secondTarget = m_players.value(secondTargetIdx, nullptr);
+    if (!secondTarget) return;
+
+    Player* firstTarget = m_firstTargetForSkill;
+
+    if (skillIndex == 2 && self->getHero()->getName() == QString::fromUtf8("刘备")) {
+        emit logMessage(QString::fromUtf8("【刘备·仁之剑义之剑】发动！%1受到1点伤害，%2恢复1血！")
+                       .arg(firstTarget->getName()).arg(secondTarget->getName()));
+        emit skillEffectRequest(self->getHero()->getName(),
+                                QString::fromUtf8("仁之剑义之剑"),
+                                QString::fromUtf8("video/liubei_jian.mp4"));
+
+        firstTarget->receiveDamage(1);
+        emit animationRequest("damage", playerIndex(self), playerIndex(firstTarget), "1");
+
+        secondTarget->restoreHealth(1);
+        emit animationRequest("heal", playerIndex(self), playerIndex(secondTarget), "1");
+
+        self->setSkillUsed(true);
+        emit gameStateChanged();
+        checkGameOver();
+    }
+
+    m_firstTargetForSkill = nullptr;
+    m_waitingForSecondTarget = false;
+}
+
+void GameEngine::prepareTargetSelectionForSkill(int skillIndex, const QString& skillName) {
+    m_pendingSkillIndex = skillIndex;
+    m_pendingSkillName = skillName;
+    if (m_aiTimer) m_aiTimer->stop();
+    emit requestTargetSelectionForSkill(skillIndex, skillName);
+}
+
+void GameEngine::prepareUseSkillAfterDamage(int skillIndex, const QString& skillName) {
+    m_pendingSkillIndex = skillIndex;
+    m_pendingSkillName = skillName;
+    emit requestUseSkillAfterDamage(skillIndex, skillName);
+}
+
+void GameEngine::prepareSecondTargetForSkill(int skillIndex, Player* firstTarget) {
+    m_firstTargetForSkill = firstTarget;
+    m_pendingSkillIndex = skillIndex;
+    m_waitingForSecondTarget = true;
+    emit requestSecondTargetForSkill(skillIndex, firstTarget);
 }

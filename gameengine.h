@@ -41,6 +41,15 @@ signals:
     void skillEffectRequest(const QString& heroName, const QString& skillName, const QString& videoPath);
     void requestDodgeResponse(int targetPlayerIndex, int secondsTimeout);
     void showCenterEffect(const QString& effectType, const QString& text, int durationMs);
+    void requestTargetSelectionForSkill(int skillIndex, const QString& skillName);
+    void requestUseSkillAfterDamage(int skillIndex, const QString& skillName);
+    void requestSecondTargetForSkill(int skillIndex, Player* firstTarget);
+
+public slots:
+    void executeSecondTargetSkill(int skillIndex, int secondTargetIdx);
+    void prepareTargetSelectionForSkill(int skillIndex, const QString& skillName);
+    void prepareUseSkillAfterDamage(int skillIndex, const QString& skillName);
+    void prepareSecondTargetForSkill(int skillIndex, Player* firstTarget);
 
 private slots:
     void aiTakeTurn();
@@ -61,13 +70,18 @@ private:
     int              m_curIdx  = 0;
     bool             m_running = false;
     QTimer*          m_aiTimer = nullptr;
-    
+
     bool             m_waitingForDodgeResponse = false;
     int              m_dodgeResponseTarget = -1;
     int              m_dodgeCardIndex = -1;
     QTimer*          m_dodgeTimer = nullptr;
     Player*          m_pendingKillFrom = nullptr;
     Player*          m_pendingKillTo = nullptr;
+
+    int              m_pendingSkillIndex = -1;
+    QString          m_pendingSkillName;
+    Player*          m_firstTargetForSkill = nullptr;
+    bool             m_waitingForSecondTarget = false;
 };
 
 #endif // GAMEENGINE_H

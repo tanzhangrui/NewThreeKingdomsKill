@@ -50,6 +50,9 @@ private slots:
     void onSkillEffectRequest(const QString& heroName, const QString& skillName, const QString& videoPath);
     void onRequestDodgeResponse(int targetPlayerIndex, int secondsTimeout);
     void onDodgeResponse(bool useDodge);
+    void onRequestTargetSelectionForSkill(int skillIndex, const QString& skillName);
+    void onRequestUseSkillAfterDamage(int skillIndex, const QString& skillName);
+    void onRequestSecondTargetForSkill(int skillIndex, Player* firstTarget);
 
 private:
     void buildUI();

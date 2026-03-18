@@ -480,15 +480,15 @@ void HeroPanel::paintEvent(QPaintEvent*) {
     
     QString heroName   = m_player->getHero() ? m_player->getHero()->getName() : "?";
     QString displayName = m_player->getHero() ? m_player->getHero()->getDisplayName() : "?";
-    
-    QRect portrait(r.left()+12, r.top()+12, 90, 110);
-    QPainterPath pp; pp.addRoundedRect(portrait, 10, 10);
-    
+
+    QRect portrait(r.left()+12, r.top()+12, 120, 140);
+    QPainterPath pp; pp.addRoundedRect(portrait, 12, 12);
+
     QColor themeCol = heroThemeColor(heroName);
-    
+
     if (!m_portraitPixmap.isNull()) {
         QPainterPath clipPath;
-        clipPath.addRoundedRect(portrait, 10, 10);
+        clipPath.addRoundedRect(portrait, 12, 12);
         p.setClipPath(clipPath);
         QPixmap scaled = m_portraitPixmap.scaled(portrait.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
         p.drawPixmap(portrait, scaled);
@@ -500,43 +500,29 @@ void HeroPanel::paintEvent(QPaintEvent*) {
         pg.setColorAt(1, themeCol.darker(160));
         p.fillPath(pp, pg);
     }
-    
+
     p.setPen(QPen(C_GOLD.darker(120), 2));
     p.drawPath(pp);
-    
+
     if (m_portraitPixmap.isNull() && !m_portraitMovie) {
-        QFont hf; hf.setPixelSize(52); hf.setBold(true); p.setFont(hf);
+        QFont hf; hf.setPixelSize(64); hf.setBold(true); p.setFont(hf);
         p.setPen(themeCol.lighter(180));
         QString portChar = m_player->getHero() ? m_player->getHero()->portraitChar() : heroName.left(1);
         p.drawText(portrait, Qt::AlignCenter, portChar);
     }
-    
+
     if (m_portraitLabel) {
         m_portraitLabel->setGeometry(portrait);
     }
-    
-    int tx = portrait.right() + 16;
-    QFont nf; nf.setPixelSize(20); nf.setBold(true); p.setFont(nf);
+
+    int tx = portrait.right() + 20;
+    QFont nf; nf.setPixelSize(22); nf.setBold(true); p.setFont(nf);
     p.setPen(C_GOLD);
     p.drawText(tx, r.top()+32, displayName);
-    
-    if (m_player->getHero()) {
-        QFont sf; sf.setPixelSize(14); p.setFont(sf);
-        p.setPen(C_PURPLE);
-        Hero* h = m_player->getHero();
-        QString skillText;
-        for (int i = 0; i < h->getSkillCount(); ++i) {
-            SkillInfo info = h->getSkillInfo(i);
-            QString prefix = info.isActive() ? QString::fromUtf8("[主]") : QString::fromUtf8("[被]");
-            if (i > 0) skillText += QString::fromUtf8(" ");
-            skillText += prefix + info.name;
-        }
-        p.drawText(tx, r.top()+56, skillText);
-    }
-    
+
     int hp = m_player->getHealth(), maxHp = m_player->getMaxHealth();
-    int pipW=20, pipH=16, pipGap=4, startX=tx, startY=r.top()+76;
-    
+    int pipW=22, pipH=18, pipGap=4, startX=tx, startY=r.top()+56;
+
     for (int i = 0; i < maxHp; ++i) {
         QRectF pip(startX+i*(pipW+pipGap), startY, pipW, pipH);
         QPainterPath pp2; pp2.addRoundedRect(pip,4,4);
@@ -549,12 +535,26 @@ void HeroPanel::paintEvent(QPaintEvent*) {
         } else { fc=QColor(0x25,0x18,0x35); }
         p.fillPath(pp2, fc);
     }
-    
+
     QFont hpf; hpf.setPixelSize(16); p.setFont(hpf);
     p.setPen(QColor(220,220,220));
     p.drawText(startX, startY+pipH+20, QString("%1/%2 HP").arg(hp).arg(maxHp));
     p.setPen(QColor(180,160,220));
-    p.drawText(startX, startY+pipH+42, QString::fromUtf8("手牌: ") + QString::number(m_player->getHandCards().size()));
+    p.drawText(startX, startY+pipH+40, QString::fromUtf8("手牌: ") + QString::number(m_player->getHandCards().size()));
+    
+    if (m_player->getHero()) {
+        QFont sf; sf.setPixelSize(13); p.setFont(sf);
+        p.setPen(C_PURPLE);
+        Hero* h = m_player->getHero();
+        int skillY = startY+pipH+60;
+        for (int i = 0; i < h->getSkillCount(); ++i) {
+            SkillInfo info = h->getSkillInfo(i);
+            QString prefix = info.isActive() ? QString::fromUtf8("[主]") : QString::fromUtf8("[被]");
+            QString skillText = prefix + info.name;
+            p.drawText(tx, skillY, skillText);
+            skillY += 16;
+        }
+    }
     
     if (m_flashAlpha > 0.0) {
         p.fillPath(bg, QColor(0xFF,0x10,0x10,(int)(m_flashAlpha*140)));
@@ -644,81 +644,108 @@ void MainWindow::buildCharacterSelectUI() {
     QHBoxLayout* heroLayout = new QHBoxLayout();
     heroLayout->setSpacing(50);
     
-    struct HeroData { QString name; QString desc; QString color; QString skills; };
+    struct HeroData { QString name; QString desc; QString color; QString skills; QString imgPath; };
     QVector<HeroData> heroes = {
-        { QString::fromUtf8("曹操"), 
-          QString::fromUtf8("技能：\n[被]战无不胜の斗鸡眼\n[被]呱\n[主]汪\n[被]临终关怀"), 
+        { QString::fromUtf8("曹操"),
+          QString::fromUtf8("技能：\n[被]战无不胜の斗鸡眼\n[被]呱\n[主]汪\n[被]临终关怀"),
           QString("#C0202A"),
           QString::fromUtf8(
             "【战无不胜の斗鸡眼】被动\n血量≤50%时，对全体敌方造成1点精神伤害\n\n"
             "【呱】被动\n本回合未出牌时，对一名玩家造成1点精神伤害\n\n"
             "【汪】主动\n指定一名玩家，双方轮流出【杀】，最先放弃的受1点伤害\n\n"
             "【临终关怀】被动\n阵亡时，对全体玩家造成1点精神伤害"
-          )
+          ),
+          QString::fromUtf8("img/caocao.gif")
         },
-        { QString::fromUtf8("刘备"), 
-          QString::fromUtf8("技能：\n[被]自刎归天\n[被]无敌の二弟\n[主]仁之剑义之剑"), 
+        { QString::fromUtf8("刘备"),
+          QString::fromUtf8("技能：\n[被]自刎归天\n[被]无敌の二弟\n[主]仁之剑义之剑"),
           QString("#20B050"),
           QString::fromUtf8(
             "【自刎归天】被动\n打出【杀】时，无论敌我全员都受到1点伤害\n\n"
             "【无敌の二弟】被动\n受到攻击时，可召唤二弟对攻击者造成1点伤害\n\n"
             "【仁之剑义之剑】主动\n自己恢复1血，对目标玩家造成1点伤害"
-          )
+          ),
+          QString::fromUtf8("img/liubei.png")
         },
-        { QString::fromUtf8("司马懿"), 
-          QString::fromUtf8("技能：\n[被]天意化骨掌\n[被]天意面瘫"), 
+        { QString::fromUtf8("司马懿"),
+          QString::fromUtf8("技能：\n[被]天意化骨掌\n[被]天意面瘫"),
           QString("#2050C0"),
           QString::fromUtf8(
             "【天意化骨掌】被动\n可无限出【杀】，每回合出第二张【杀】时自动发动\n\n"
             "【天意面瘫】被动\n打出【桃】时，自身恢复2点，其余存活玩家恢复1点"
-          )
+          ),
+          QString::fromUtf8("img/simayi.png")
         }
     };
     
     for (const auto& h : heroes) {
         QWidget* heroCard = new QWidget(m_characterSelectPage);
-        heroCard->setFixedSize(360, 520);
         heroCard->setCursor(Qt::PointingHandCursor);
+        heroCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        heroCard->setMinimumSize(300, 500);
         heroCard->setStyleSheet(QString(
             "QWidget{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %1,stop:1 #1A0A2A);"
             "border:4px solid #D4AF37;border-radius:18px;}"
         ).arg(h.color));
         
         QVBoxLayout* cardLayout = new QVBoxLayout(heroCard);
-        cardLayout->setContentsMargins(25, 25, 25, 25);
-        cardLayout->setSpacing(18);
+        cardLayout->setContentsMargins(20, 20, 20, 20);
+        cardLayout->setSpacing(12);
         
         QLabel* nameLabel = new QLabel(QString::fromUtf8("邪·") + h.name, heroCard);
         nameLabel->setAlignment(Qt::AlignCenter);
-        nameLabel->setStyleSheet("color:#D4AF37;font-size:36px;font-weight:bold;background:transparent;border:none;");
+        nameLabel->setStyleSheet("color:#D4AF37;font-size:32px;font-weight:bold;background:transparent;border:none;");
         cardLayout->addWidget(nameLabel);
         
-        QLabel* portraitLabel = new QLabel(h.name.left(1), heroCard);
+        QLabel* portraitLabel = new QLabel(heroCard);
         portraitLabel->setAlignment(Qt::AlignCenter);
-        portraitLabel->setStyleSheet(QString(
-            "color:%1;font-size:100px;font-weight:bold;background:rgba(0,0,0,80);"
-            "border-radius:15px;border:none;"
-        ).arg(QColor(h.color).lighter(160).name()));
-        portraitLabel->setFixedHeight(140);
+        portraitLabel->setMinimumHeight(150);
+        portraitLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         portraitLabel->setObjectName("portraitLabel");
-        cardLayout->addWidget(portraitLabel);
+
+        QFileInfo checkFile(h.imgPath);
+        bool imageLoaded = false;
+        if (checkFile.exists()) {
+            if (h.imgPath.endsWith(".gif", Qt::CaseInsensitive)) {
+                QMovie* movie = new QMovie(h.imgPath);
+                if (movie->isValid()) {
+                    portraitLabel->setMovie(movie);
+                    movie->start();
+                    imageLoaded = true;
+                }
+            } else {
+                QPixmap pix(h.imgPath);
+                if (!pix.isNull()) {
+                    portraitLabel->setPixmap(pix.scaled(200, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    imageLoaded = true;
+                }
+            }
+        }
+        if (!imageLoaded) {
+            portraitLabel->setStyleSheet(QString(
+                "color:%1;font-size:80px;font-weight:bold;background:rgba(0,0,0,80);"
+                "border-radius:15px;border:none;"
+            ).arg(QColor(h.color).lighter(160).name()));
+            portraitLabel->setText(h.name.left(1));
+        }
+        cardLayout->addWidget(portraitLabel, 1);
         
         QLabel* skillTitle = new QLabel(QString::fromUtf8("【技能介绍】"), heroCard);
         skillTitle->setAlignment(Qt::AlignCenter);
-        skillTitle->setStyleSheet("color:#FFD700;font-size:18px;font-weight:bold;background:transparent;border:none;");
+        skillTitle->setStyleSheet("color:#FFD700;font-size:16px;font-weight:bold;background:transparent;border:none;");
         cardLayout->addWidget(skillTitle);
         
         QLabel* descLabel = new QLabel(h.skills, heroCard);
         descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         descLabel->setWordWrap(true);
-        descLabel->setStyleSheet("color:#CC99FF;font-size:15px;background:transparent;border:none;line-height:1.5;");
+        descLabel->setStyleSheet("color:#CC99FF;font-size:14px;background:transparent;border:none;line-height:1.4;");
         descLabel->setTextFormat(Qt::PlainText);
         cardLayout->addWidget(descLabel, 1);
         
         heroCard->installEventFilter(this);
         heroCard->setProperty("heroName", h.name);
         
-        heroLayout->addWidget(heroCard);
+        heroLayout->addWidget(heroCard, 1);
     }
     
     layout->addLayout(heroLayout);
@@ -999,9 +1026,11 @@ void MainWindow::startGameWithHero(const QString& heroName) {
     delete m_engine; m_engine = nullptr;
     for (auto*& pl : m_players) { delete pl; pl = nullptr; }
 
+    m_log->clear();
+
     m_players[0] = new Player(QString::fromUtf8("玩家"), 4);
-    m_players[1] = new Player(QString::fromUtf8("AI-邪"), 4);
-    m_players[2] = new Player(QString::fromUtf8("AI-邪"), 4);
+    m_players[1] = new Player(QString::fromUtf8("邪·曹操"), 4);
+    m_players[2] = new Player(QString::fromUtf8("邪·刘备"), 4);
     
     if (heroName == QString::fromUtf8("曹操")) {
         m_players[0]->setHero(new CaoCao());
@@ -1020,6 +1049,30 @@ void MainWindow::startGameWithHero(const QString& heroName) {
     for (int i = 0; i < 3; ++i)
         m_heroPanels[i]->setPlayer(m_players[i]);
 
+    if (m_players[0]->getHero()) {
+        QString heroName = m_players[0]->getHero()->getName();
+        if (heroName == QString::fromUtf8("曹操")) {
+            m_heroPanels[0]->setPortraitGif(QString::fromUtf8("img/caocao.gif"));
+        } else if (heroName == QString::fromUtf8("刘备")) {
+            m_heroPanels[0]->setPortraitImage(QString::fromUtf8("img/liubei.png"));
+        } else if (heroName == QString::fromUtf8("司马懿")) {
+            m_heroPanels[0]->setPortraitImage(QString::fromUtf8("img/simayi.png"));
+        }
+    }
+
+    for (int i = 1; i < 3; ++i) {
+        if (m_players[i]->getHero()) {
+            QString heroName = m_players[i]->getHero()->getName();
+            if (heroName == QString::fromUtf8("曹操")) {
+                m_heroPanels[i]->setPortraitGif(QString::fromUtf8("img/caocao.gif"));
+            } else if (heroName == QString::fromUtf8("刘备")) {
+                m_heroPanels[i]->setPortraitImage(QString::fromUtf8("img/liubei.png"));
+            } else if (heroName == QString::fromUtf8("司马懿")) {
+                m_heroPanels[i]->setPortraitImage(QString::fromUtf8("img/simayi.png"));
+            }
+        }
+    }
+
     m_engine = new GameEngine(this);
     connect(m_engine, &GameEngine::logMessage, this, [this](const QString& msg){
         m_log->append(msg);
@@ -1029,8 +1082,11 @@ void MainWindow::startGameWithHero(const QString& heroName) {
     connect(m_engine, &GameEngine::gameOver,          this,   &MainWindow::onGameOver);
     connect(m_engine, &GameEngine::animationRequest,  this,   &MainWindow::onAnimationRequest);
     connect(m_engine, &GameEngine::showCenterEffect,  this,   &MainWindow::onShowCenterEffect);
-    connect(m_engine, &GameEngine::skillEffectRequest,this,   &MainWindow::onSkillEffectRequest);
+    connect(m_engine, &GameEngine::skillEffectRequest,this, &MainWindow::onSkillEffectRequest);
     connect(m_engine, &GameEngine::requestDodgeResponse, this, &MainWindow::onRequestDodgeResponse);
+    connect(m_engine, &GameEngine::requestTargetSelectionForSkill, this, &MainWindow::onRequestTargetSelectionForSkill);
+    connect(m_engine, &GameEngine::requestUseSkillAfterDamage, this, &MainWindow::onRequestUseSkillAfterDamage);
+    connect(m_engine, &GameEngine::requestSecondTargetForSkill, this, &MainWindow::onRequestSecondTargetForSkill);
 
     m_engine->startGame(m_players[0], m_players[1], m_players[2]);
     setGameButtonsEnabled(true);
@@ -1083,7 +1139,21 @@ void MainWindow::refreshSkillButtons() {
         QPushButton* btn = m_skillButtons[btnIdx];
         
         QString prefix = QString::fromUtf8("[主]");
-        btn->setText(prefix + info.name);
+        QString skillName = info.name;
+        QString displayText = prefix + skillName;
+        if (skillName.length() > 6) {
+            int mid = skillName.length() / 2;
+            displayText = prefix + skillName.left(mid) + "\n" + skillName.mid(mid);
+        }
+        btn->setText(displayText);
+        btn->setStyleSheet(QString(
+            "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #4A1A6A,stop:1 #2A0A44);"
+            "color:#CC99FF;border:2px solid #8A5AAA;border-radius:10px;"
+            "font-size:16px;font-weight:bold;padding:10px;line-height:1.3;}"
+            "QPushButton:hover{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #6A2A8A,stop:1 #4A1A6A);border:2px solid #AA7ACC;}"
+            "QPushButton:pressed{background:#2A0A44;}"
+            "QPushButton:disabled{background:#2A2A3E;color:#555;border:2px solid #3A3A4E;}"
+        ));
         btn->setToolTip(QString::fromUtf8("<html><head/><body><p style='white-space:pre-wrap;font-size:16px;'>"
                                           "<b style='font-size:20px;color:#CC99FF;'>%1</b><br><br>%2</p></body></html>")
                         .arg(info.name, info.desc));
@@ -1101,7 +1171,20 @@ void MainWindow::refreshSkillButtons() {
         QPushButton* btn = m_skillButtons[btnIdx];
         
         QString prefix = QString::fromUtf8("[被]");
-        btn->setText(prefix + info.name);
+        QString skillName = info.name;
+        QString displayText = prefix + skillName;
+        if (skillName.length() > 6) {
+            int mid = skillName.length() / 2;
+            displayText = prefix + skillName.left(mid) + "\n" + skillName.mid(mid);
+        }
+        btn->setText(displayText);
+        btn->setStyleSheet(QString(
+            "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #3A2A4A,stop:1 #1A1A2A);"
+            "color:#AA77DD;border:2px solid #6A4A8A;border-radius:10px;"
+            "font-size:16px;font-weight:bold;padding:10px;line-height:1.3;}"
+            "QPushButton:hover{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #4A3A5A,stop:1 #2A2A3A);}"
+            "QPushButton:disabled{background:#2A2A3E;color:#777;border:2px solid #3A3A4E;}"
+        ));
         btn->setToolTip(QString::fromUtf8("<html><head/><body><p style='white-space:pre-wrap;font-size:16px;'>"
                                           "<b style='font-size:20px;color:#AA77DD;'>%1</b><br><br>%2</p></body></html>")
                         .arg(info.name, info.desc));
@@ -1361,15 +1444,17 @@ void MainWindow::playVideoEffect(const QString& videoPath) {
         return;
     }
     
-    if (m_videoOverlay && m_videoPlayer) {
+    if (m_videoOverlay && m_videoPlayer && m_videoWidget) {
         m_videoOverlay->setGeometry(m_gamePage->geometry());
         m_videoOverlay->show();
         m_videoOverlay->raise();
         
         m_videoWidget->setGeometry(m_videoOverlay->rect());
         m_videoWidget->show();
+        m_videoWidget->raise();
         
-        m_videoPlayer->setMedia(QUrl::fromLocalFile(videoPath));
+        m_videoPlayer->setMedia(QUrl::fromLocalFile(QFileInfo(videoPath).absoluteFilePath()));
+        m_videoPlayer->setVolume(100);
         m_videoPlayer->play();
     }
 }
@@ -1407,12 +1492,92 @@ void MainWindow::onRequestDodgeResponse(int targetPlayerIndex, int secondsTimeou
 void MainWindow::onDodgeResponse(bool useDodge) {
     m_btnUseDodge->hide();
     m_btnNoDodge->hide();
-    
+
     if (m_engine) {
         m_engine->playerRespondDodge(useDodge);
     }
-    
+
     setGameButtonsEnabled(true);
+}
+
+void MainWindow::onRequestTargetSelectionForSkill(int skillIndex, const QString& skillName) {
+    Q_UNUSED(skillName)
+    m_pendingSkillIndex = skillIndex;
+    m_pendingCardIndex = -1;
+    
+    QString guaSkill = QString::fromUtf8("呱");
+    bool isGuaSkill = false;
+    
+    Player* currentPlayer = m_engine ? m_engine->currentPlayer() : nullptr;
+    if (currentPlayer && currentPlayer->getHero()) {
+        SkillInfo info = currentPlayer->getHero()->getSkillInfo(skillIndex);
+        if (info.name == guaSkill) {
+            isGuaSkill = true;
+        }
+    }
+    
+    m_log->append(QString::fromUtf8(">>> 请点击一个目标玩家！"));
+    
+    enterTargetSelectionMode([this, skillIndex, isGuaSkill](int tgt){
+        if (m_engine) {
+            Player* target = m_engine->playerAt(tgt);
+            Player* self = m_engine->currentPlayer();
+            if (self && target) {
+                if (isGuaSkill) {
+                    target->receiveDamage(1);
+                    m_engine->animationRequest("damage", m_engine->playerIndex(self), tgt, "1");
+                    m_engine->logMessage(QString::fromUtf8("【呱】对%1造成1点精神伤害！").arg(target->getDisplayName()));
+                    m_engine->gameStateChanged();
+                    m_engine->checkGameOver();
+                    
+                    if (!m_engine->isHumanTurn()) {
+                        QTimer::singleShot(1000, this, [this](){
+                            if (m_engine && m_engine->isRunning()) {
+                                m_engine->playerEndTurn();
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    });
+}
+
+void MainWindow::onRequestUseSkillAfterDamage(int skillIndex, const QString& skillName) {
+    Q_UNUSED(skillName)
+    m_pendingSkillIndex = skillIndex;
+    m_pendingCardIndex = -1;
+
+    QString erdiSkill = QString::fromUtf8("无敌の二弟");
+    for (int i = 0; i < m_skillButtons.size(); ++i) {
+        QPushButton* btn = m_skillButtons[i];
+        QString btnText = btn->text();
+        if (btnText.contains(erdiSkill)) {
+            btn->setEnabled(true);
+            btn->setStyleSheet(QString(
+                "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #6A2A8A,stop:1 #4A1A6A);"
+                "color:#FFD700;border:3px solid #FFD700;border-radius:10px;"
+                "font-size:16px;font-weight:bold;padding:10px;line-height:1.3;}"
+                "QPushButton:hover{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #8A3AAA,stop:1 #6A2A8A);}"
+                "QPushButton:pressed{background:#4A1A6A;}"
+            ));
+            m_log->append(QString::fromUtf8(">>> 点击【%1】按钮发动技能！").arg(erdiSkill));
+            break;
+        }
+    }
+}
+
+void MainWindow::onRequestSecondTargetForSkill(int skillIndex, Player* firstTarget) {
+    Q_UNUSED(skillIndex)
+    m_pendingCardIndex = -1;
+    
+    m_log->append(QString::fromUtf8(">>> 已选择伤害目标：%1，请选择恢复目标！").arg(firstTarget->getDisplayName()));
+    
+    enterTargetSelectionMode([this, skillIndex](int tgt){
+        if (m_engine) {
+            m_engine->executeSecondTargetSkill(skillIndex, tgt);
+        }
+    });
 }
 
 void MainWindow::onGameOver(const QString& winner) {
@@ -1426,7 +1591,12 @@ void MainWindow::onGameOver(const QString& winner) {
     showFloatingText(msg, 1, "#FFD700");
     showCenterEffectText(QString::fromUtf8("胜利"), QString::fromUtf8("gameover"), 2500);
 
-    QTimer::singleShot(800, this, [this, msg](){
+    int delayMs = 3500;
+    if (m_videoPlayer && m_videoPlayer->state() == QMediaPlayer::PlayingState) {
+        delayMs = 5000;
+    }
+
+    QTimer::singleShot(delayMs, this, [this, msg](){
         QMessageBox mb(this);
         mb.setWindowTitle(QString::fromUtf8("游戏结束"));
         mb.setText(msg);
