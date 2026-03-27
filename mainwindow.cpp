@@ -21,6 +21,9 @@
 #include <QFileInfo>
 #include <QEvent>
 #include <QUrl>
+#include <QCoreApplication>
+#include <QDir>
+#include <QStringList>
 
 static const QColor C_GOLD(0xD4, 0xAF, 0x37);
 static const QColor C_RED(0xC0, 0x20, 0x2A);
@@ -103,7 +106,7 @@ void CenterEffectWidget::paintEvent(QPaintEvent*) {
     
     for (int i = 8; i >= 1; --i) {
         QColor glow = glowColor;
-        glow.setAlpha(40 * i);
+        glow.setAlpha(qMin(255, 40 * i));
         p.setPen(QPen(glow, i * 5));
         p.setBrush(Qt::NoBrush);
         p.drawEllipse(QPointF(0, 0), 150 + i * 35, 150 + i * 35);
@@ -378,30 +381,73 @@ HeroPanel::HeroPanel(int idx, QWidget* parent)
 }
 
 void HeroPanel::setPortraitImage(const QString& imagePath) {
-    if (QFile::exists(imagePath)) {
-        m_portraitPixmap.load(imagePath);
+    QStringList searchPaths;
+    searchPaths << imagePath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/" + imagePath;
+    searchPaths << QDir::currentPath() + "/" + imagePath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../" + imagePath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../../NewThreeKingdomsKill/" + imagePath;
+    searchPaths << QDir::currentPath() + "/../NewThreeKingdomsKill/" + imagePath;
+    
+    QString foundPath;
+    for (const QString& p : searchPaths) {
+        if (QFile::exists(p)) {
+            foundPath = p;
+            break;
+        }
+    }
+    
+    if (!foundPath.isEmpty()) {
+        m_portraitPixmap.load(foundPath);
         if (m_portraitMovie) {
             delete m_portraitMovie;
             m_portraitMovie = nullptr;
+        }
+        if (m_portraitLabel) {
+            m_portraitLabel->hide();
         }
         update();
     }
 }
 
 void HeroPanel::setPortraitGif(const QString& gifPath) {
-    if (QFile::exists(gifPath)) {
+    QStringList searchPaths;
+    searchPaths << gifPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/" + gifPath;
+    searchPaths << QDir::currentPath() + "/" + gifPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../" + gifPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../../NewThreeKingdomsKill/" + gifPath;
+    searchPaths << QDir::currentPath() + "/../NewThreeKingdomsKill/" + gifPath;
+    
+    QString foundPath;
+    for (const QString& p : searchPaths) {
+        if (QFile::exists(p)) {
+            foundPath = p;
+            break;
+        }
+    }
+    
+    if (!foundPath.isEmpty()) {
+        m_portraitPixmap = QPixmap();
+        
         if (!m_portraitLabel) {
             m_portraitLabel = new QLabel(this);
             m_portraitLabel->setAlignment(Qt::AlignCenter);
+            m_portraitLabel->setStyleSheet("background:transparent;");
         }
         if (m_portraitMovie) {
             delete m_portraitMovie;
         }
-        m_portraitMovie = new QMovie(gifPath);
-        m_portraitLabel->setMovie(m_portraitMovie);
-        m_portraitMovie->start();
-        m_portraitLabel->show();
-        m_portraitLabel->raise();
+        m_portraitMovie = new QMovie(foundPath, QByteArray(), m_portraitLabel);
+        if (m_portraitMovie->isValid()) {
+            m_portraitLabel->setMovie(m_portraitMovie);
+            m_portraitMovie->start();
+            m_portraitLabel->show();
+            m_portraitLabel->raise();
+        } else {
+            delete m_portraitMovie;
+            m_portraitMovie = nullptr;
+        }
     }
 }
 
@@ -491,7 +537,9 @@ void HeroPanel::paintEvent(QPaintEvent*) {
         clipPath.addRoundedRect(portrait, 12, 12);
         p.setClipPath(clipPath);
         QPixmap scaled = m_portraitPixmap.scaled(portrait.size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-        p.drawPixmap(portrait, scaled);
+        QPoint drawPos(portrait.x() + (portrait.width() - scaled.width()) / 2,
+                       portrait.y() + (portrait.height() - scaled.height()) / 2);
+        p.drawPixmap(drawPos, scaled);
         p.setClipping(false);
     } else {
         QLinearGradient pg(portrait.topLeft(), portrait.bottomRight());
@@ -511,7 +559,12 @@ void HeroPanel::paintEvent(QPaintEvent*) {
         p.drawText(portrait, Qt::AlignCenter, portChar);
     }
 
-    if (m_portraitLabel) {
+    if (m_portraitLabel && m_portraitMovie) {
+        QSize movieSize = m_portraitMovie->currentPixmap().size();
+        if (movieSize.isValid()) {
+            QSize scaledSize = movieSize.scaled(portrait.size(), Qt::KeepAspectRatioByExpanding);
+            m_portraitMovie->setScaledSize(scaledSize);
+        }
         m_portraitLabel->setGeometry(portrait);
     }
 
@@ -618,7 +671,7 @@ void MainWindow::buildUI() {
     connect(m_particleTimer, &QTimer::timeout, this, &MainWindow::onParticleTimer);
     
     m_backgroundTimer = new QTimer(this);
-    m_backgroundTimer->setInterval(33);
+    m_backgroundTimer->setInterval(50);
     connect(m_backgroundTimer, &QTimer::timeout, this, &MainWindow::onBackgroundTimer);
     m_backgroundTimer->start();
 }
@@ -682,65 +735,85 @@ void MainWindow::buildCharacterSelectUI() {
         QWidget* heroCard = new QWidget(m_characterSelectPage);
         heroCard->setCursor(Qt::PointingHandCursor);
         heroCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-        heroCard->setMinimumSize(300, 500);
+        heroCard->setMinimumSize(320, 550);
         heroCard->setStyleSheet(QString(
             "QWidget{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %1,stop:1 #1A0A2A);"
             "border:4px solid #D4AF37;border-radius:18px;}"
         ).arg(h.color));
         
         QVBoxLayout* cardLayout = new QVBoxLayout(heroCard);
-        cardLayout->setContentsMargins(20, 20, 20, 20);
-        cardLayout->setSpacing(12);
+        cardLayout->setContentsMargins(25, 25, 25, 25);
+        cardLayout->setSpacing(15);
         
         QLabel* nameLabel = new QLabel(QString::fromUtf8("邪·") + h.name, heroCard);
         nameLabel->setAlignment(Qt::AlignCenter);
-        nameLabel->setStyleSheet("color:#D4AF37;font-size:32px;font-weight:bold;background:transparent;border:none;");
+        nameLabel->setStyleSheet("color:#D4AF37;font-size:38px;font-weight:bold;background:transparent;border:none;");
         cardLayout->addWidget(nameLabel);
         
         QLabel* portraitLabel = new QLabel(heroCard);
         portraitLabel->setAlignment(Qt::AlignCenter);
-        portraitLabel->setMinimumHeight(150);
+        portraitLabel->setMinimumHeight(200);
         portraitLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         portraitLabel->setObjectName("portraitLabel");
+        portraitLabel->setScaledContents(false);
 
-        QFileInfo checkFile(h.imgPath);
+        QStringList imgSearchPaths;
+        imgSearchPaths << h.imgPath;
+        imgSearchPaths << QCoreApplication::applicationDirPath() + "/" + h.imgPath;
+        imgSearchPaths << QDir::currentPath() + "/" + h.imgPath;
+        imgSearchPaths << QCoreApplication::applicationDirPath() + "/../" + h.imgPath;
+        imgSearchPaths << QCoreApplication::applicationDirPath() + "/../../NewThreeKingdomsKill/" + h.imgPath;
+        imgSearchPaths << QDir::currentPath() + "/../NewThreeKingdomsKill/" + h.imgPath;
+        
+        QString imgFullPath;
+        for (const QString& p : imgSearchPaths) {
+            if (QFile::exists(p)) {
+                imgFullPath = p;
+                break;
+            }
+        }
+        
         bool imageLoaded = false;
-        if (checkFile.exists()) {
+        if (!imgFullPath.isEmpty()) {
             if (h.imgPath.endsWith(".gif", Qt::CaseInsensitive)) {
-                QMovie* movie = new QMovie(h.imgPath);
+                QMovie* movie = new QMovie(imgFullPath, QByteArray(), portraitLabel);
                 if (movie->isValid()) {
+                    movie->setCacheMode(QMovie::CacheAll);
                     portraitLabel->setMovie(movie);
                     movie->start();
                     imageLoaded = true;
+                } else {
+                    delete movie;
                 }
             } else {
-                QPixmap pix(h.imgPath);
+                QPixmap pix(imgFullPath);
                 if (!pix.isNull()) {
-                    portraitLabel->setPixmap(pix.scaled(200, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    portraitLabel->setPixmap(pix);
                     imageLoaded = true;
                 }
             }
         }
         if (!imageLoaded) {
             portraitLabel->setStyleSheet(QString(
-                "color:%1;font-size:80px;font-weight:bold;background:rgba(0,0,0,80);"
+                "color:%1;font-size:100px;font-weight:bold;background:rgba(0,0,0,80);"
                 "border-radius:15px;border:none;"
             ).arg(QColor(h.color).lighter(160).name()));
             portraitLabel->setText(h.name.left(1));
         }
-        cardLayout->addWidget(portraitLabel, 1);
+        portraitLabel->installEventFilter(this);
+        cardLayout->addWidget(portraitLabel, 3);
         
         QLabel* skillTitle = new QLabel(QString::fromUtf8("【技能介绍】"), heroCard);
         skillTitle->setAlignment(Qt::AlignCenter);
-        skillTitle->setStyleSheet("color:#FFD700;font-size:16px;font-weight:bold;background:transparent;border:none;");
+        skillTitle->setStyleSheet("color:#FFD700;font-size:20px;font-weight:bold;background:transparent;border:none;");
         cardLayout->addWidget(skillTitle);
         
         QLabel* descLabel = new QLabel(h.skills, heroCard);
         descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         descLabel->setWordWrap(true);
-        descLabel->setStyleSheet("color:#CC99FF;font-size:14px;background:transparent;border:none;line-height:1.4;");
+        descLabel->setStyleSheet("color:#CC99FF;font-size:16px;background:transparent;border:none;line-height:1.5;");
         descLabel->setTextFormat(Qt::PlainText);
-        cardLayout->addWidget(descLabel, 1);
+        cardLayout->addWidget(descLabel, 2);
         
         heroCard->installEventFilter(this);
         heroCard->setProperty("heroName", h.name);
@@ -884,6 +957,25 @@ void MainWindow::buildGameUI() {
     m_videoPlayer = new QMediaPlayer(this);
     m_videoPlayer->setVideoOutput(m_videoWidget);
     
+    connect(m_videoPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::Error)>(&QMediaPlayer::error),
+            this, [this](QMediaPlayer::Error error) {
+        Q_UNUSED(error)
+        if (m_videoPlayer->errorString().isEmpty()) {
+            m_log->append(QString::fromUtf8("视频播放失败：缺少解码器或格式不支持"));
+        } else {
+            m_log->append(QString::fromUtf8("视频播放错误：") + m_videoPlayer->errorString());
+        }
+        m_videoOverlay->hide();
+    });
+    
+    connect(m_videoPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::MediaStatus)>(&QMediaPlayer::mediaStatusChanged),
+            this, [this](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::InvalidMedia) {
+            m_log->append(QString::fromUtf8("视频格式无效，请安装K-Lite Codec Pack或LAV Filters"));
+            m_videoOverlay->hide();
+        }
+    });
+    
     m_stackedWidget->addWidget(m_gamePage);
     
     setGameButtonsEnabled(false);
@@ -910,8 +1002,14 @@ void MainWindow::resizeEvent(QResizeEvent* e) {
     if (m_overlay) {
         m_overlay->setGeometry(m_gamePage->geometry());
     }
-    if (m_videoOverlay) {
-        m_videoOverlay->setGeometry(m_gamePage->geometry());
+    if (m_videoOverlay && m_videoOverlay->isVisible()) {
+        QRect gameRect = m_gamePage->geometry();
+        int videoW = gameRect.width() * 0.6;
+        int videoH = gameRect.height() * 0.5;
+        int videoX = gameRect.x() + (gameRect.width() - videoW) / 2;
+        int videoY = gameRect.y() + (gameRect.height() - videoH) / 2;
+        m_videoOverlay->setGeometry(videoX, videoY, videoW, videoH);
+        m_videoWidget->setGeometry(5, 5, videoW - 10, videoH - 10);
     }
     if (m_centerEffect) {
         m_centerEffect->setGeometry(m_gamePage->geometry());
@@ -1326,11 +1424,8 @@ void MainWindow::refreshHandCards() {
         
         QString cardName = cards[i]->getName();
         QString displayName = cardName;
-        if (cardName.length() > 4) {
-            displayName = cardName.left(4) + QString::fromUtf8("...");
-        }
         
-        QPushButton* btn = new QPushButton(displayName, m_handArea);
+        QPushButton* btn = new QPushButton(m_handArea);
         btn->setCursor(Qt::PointingHandCursor);
         
         QString fullDesc = cards[i]->getDescription();
@@ -1339,14 +1434,23 @@ void MainWindow::refreshHandCards() {
                         .arg(col.lighter(140).name(), cardName, fullDesc));
         
         btn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
-        btn->setMinimumWidth(110);
+        btn->setMinimumWidth(100);
         btn->setMinimumHeight(130);
+        
+        int fontSize = 20;
+        if (cardName.length() > 6) {
+            fontSize = 16;
+        }
+        if (cardName.length() > 8) {
+            fontSize = 14;
+        }
         
         btn->setStyleSheet(QString(
             "QPushButton{"
             "  background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %1,stop:1 %2);"
             "  color:white;border:3px solid rgba(255,255,255,60);"
-            "  border-radius:12px;font-size:22px;font-weight:bold;"
+            "  border-radius:12px;font-size:%4px;font-weight:bold;"
+            "  padding:8px;"
             "}"
             "QPushButton:hover{"
             "  border:4px solid white;"
@@ -1354,8 +1458,9 @@ void MainWindow::refreshHandCards() {
             "}"
             "QPushButton:pressed{background:%2;}"
             "QPushButton:disabled{opacity:0.5;}"
-        ).arg(light, dark, col.lighter(200).name()));
+        ).arg(light, dark, col.lighter(200).name()).arg(fontSize));
         
+        btn->setText(displayName);
         btn->setEnabled(isHuman && !m_selectingTarget);
         
         int idx = i;
@@ -1438,22 +1543,45 @@ void MainWindow::showCenterEffectText(const QString& text, const QString& type, 
 }
 
 void MainWindow::playVideoEffect(const QString& videoPath) {
-    QFile videoFile(videoPath);
-    if (!videoFile.exists()) {
-        qDebug() << QString::fromUtf8("视频文件不存在:") << videoPath;
+    QStringList searchPaths;
+    searchPaths << videoPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/" + videoPath;
+    searchPaths << QDir::currentPath() + "/" + videoPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../" + videoPath;
+    searchPaths << QCoreApplication::applicationDirPath() + "/../../NewThreeKingdomsKill/" + videoPath;
+    searchPaths << QDir::currentPath() + "/../NewThreeKingdomsKill/" + videoPath;
+    
+    QString foundPath;
+    for (const QString& p : searchPaths) {
+        if (QFile::exists(p)) {
+            foundPath = p;
+            break;
+        }
+    }
+    
+    if (foundPath.isEmpty()) {
         return;
     }
     
     if (m_videoOverlay && m_videoPlayer && m_videoWidget) {
-        m_videoOverlay->setGeometry(m_gamePage->geometry());
+        QRect gameRect = m_gamePage->geometry();
+        int videoW = gameRect.width() * 0.6;
+        int videoH = gameRect.height() * 0.5;
+        int videoX = gameRect.x() + (gameRect.width() - videoW) / 2;
+        int videoY = gameRect.y() + (gameRect.height() - videoH) / 2;
+        
+        m_videoOverlay->setGeometry(videoX, videoY, videoW, videoH);
+        m_videoOverlay->setStyleSheet("background:rgba(0,0,0,200);border-radius:15px;border:3px solid #D4AF37;");
         m_videoOverlay->show();
         m_videoOverlay->raise();
         
-        m_videoWidget->setGeometry(m_videoOverlay->rect());
+        m_videoWidget->setGeometry(5, 5, videoW - 10, videoH - 10);
         m_videoWidget->show();
         m_videoWidget->raise();
         
-        m_videoPlayer->setMedia(QUrl::fromLocalFile(QFileInfo(videoPath).absoluteFilePath()));
+        QUrl videoUrl = QUrl::fromLocalFile(QFileInfo(foundPath).absoluteFilePath());
+        
+        m_videoPlayer->setMedia(videoUrl);
         m_videoPlayer->setVolume(100);
         m_videoPlayer->play();
     }
@@ -1614,6 +1742,31 @@ void MainWindow::onGameOver(const QString& winner) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::Resize) {
+        QLabel* label = qobject_cast<QLabel*>(watched);
+        if (label && label->objectName() == "portraitLabel") {
+            QWidget* heroCard = qobject_cast<QWidget*>(label->parent());
+            if (heroCard && m_characterSelectPage && m_characterSelectPage->isAncestorOf(heroCard)) {
+                QMovie* movie = label->movie();
+                if (movie && movie->isValid()) {
+                    QSize labelSize = label->size();
+                    if (labelSize.width() > 50 && labelSize.height() > 50) {
+                        movie->setScaledSize(labelSize);
+                    }
+                } else {
+                    QPixmap pix = *(label->pixmap());
+                    if (!pix.isNull()) {
+                        QSize labelSize = label->size();
+                        if (labelSize.width() > 50 && labelSize.height() > 50) {
+                            QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                            label->setPixmap(scaled);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     if (event->type() == QEvent::MouseButtonPress) {
         if (m_characterSelectPage && m_characterSelectPage->isAncestorOf(qobject_cast<QWidget*>(watched))) {
             QWidget* w = qobject_cast<QWidget*>(watched);
